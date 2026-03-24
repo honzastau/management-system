@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Management System</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Outfit','Segoe UI',sans-serif;background:#09090f;color:#e2e8f0;min-height:100vh}
+    ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#1e2433;border-radius:2px}
+    input,textarea,select{outline:none}button{cursor:pointer;font-family:inherit}
+    .ni{display:flex;align-items:center;gap:10px;padding:9px 13px;border-radius:9px;cursor:pointer;transition:all .15s;color:#64748b;font-size:13.5px;font-weight:500;border:none;background:none;width:100%;text-align:left}
+    .ni:hover{background:#13151f;color:#cbd5e1}.ni.act{background:#13151f;color:#f59e0b}
+    .card{background:#0f1118;border:1px solid #1a1f2e;border-radius:14px;padding:20px}
+    .btn{padding:8px 16px;border-radius:9px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+    .bp{background:#f59e0b;color:#09090f}.bp:hover{background:#d97706}.bp:disabled{opacity:.4;cursor:default}
+    .bg{background:#13151f;color:#94a3b8;border:1px solid #1a1f2e}.bg:hover{background:#1a1f2e;color:#e2e8f0}
+    .bd{background:#2d0a0a;color:#f87171;border:1px solid #3f1515}.bd:hover{background:#3f1515}
+    .bs{background:#062016;color:#34d399;border:1px solid #0d3a25}.bs:hover{background:#0d3a25}
+    .inp{background:#13151f;border:1px solid #1a1f2e;border-radius:9px;color:#e2e8f0;padding:9px 13px;font-size:13.5px;font-family:inherit;width:100%;transition:border .15s}
+    .inp:focus{border-color:#f59e0b66}select option{background:#13151f}
+    .overlay{position:fixed;inset:0;background:#00000099;backdrop-filter:blur(6px);z-index:200;display:flex;align-items:center;justify-content:center}
+    .modal{background:#0f1118;border:1px solid #1a1f2e;border-radius:18px;padding:28px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto}
+    .lbl{font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px;display:block}
+    .tbl{width:100%;border-collapse:collapse}.tbl th{text-align:left;padding:9px 13px;font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #1a1f2e}
+    .tbl td{padding:11px 13px;border-bottom:1px solid #1a1f2e22;font-size:13px}.tbl tr:last-child td{border-bottom:none}.tbl tr:hover td{background:#13151f55}
+    .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+    .badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+    .timer-bar{position:sticky;top:0;z-index:100;background:#09090fee;backdrop-filter:blur(10px);border-bottom:1px solid #1a1f2e;padding:10px 28px;display:flex;align-items:center;gap:14px}
+    .sec-title{font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px}
+    .statcard{background:#0f1118;border:1px solid #1a1f2e;border-radius:13px;padding:18px 20px;cursor:pointer;transition:border-color .2s}
+    .statcard:hover{border-color:#f59e0b44}
+    .pgbar{height:3px;background:#1a1f2e;border-radius:2px;overflow:hidden;margin-top:6px}
+    .pgfill{height:100%;border-radius:2px;transition:width .4s}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}
+    .sync-badge{position:fixed;bottom:20px;right:20px;background:#13151f;border:1px solid #f59e0b44;color:#f59e0b;padding:8px 16px;border-radius:9px;font-size:12px;font-weight:600;z-index:300}
+    .err-bar{background:#2d0a0a;border-bottom:1px solid #3f1515;padding:10px 28px;font-size:13px;color:#f87171;display:flex;align-items:center;gap:10px}
+    .setup-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+    .setup-box{background:#0f1118;border:1px solid #1a1f2e;border-radius:20px;padding:40px;max-width:480px;width:100%}
+    @media(max-width:768px){.grid4{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}#sidebar{display:none}}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    // ─── KONFIGURACE ────────────────────────────────────────────────────────
+    // URL Apps Scriptu — uložena v localStorage, zadáš při prvním spuštění
+    const STORAGE_KEY_URL = "mgmt_script_url";
+
+    // ─── Utils ───────────────────────────────────────────────────────────────
+    const { useState, useEffect, useRef, useCallback } = React;
+    const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } = Recharts;
+
+    const fmtTimer  = s => `${String(Math.floor(s/3600)).padStart(2,"0")}:${String(Math.floor((s%3600)/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+    const fmtDur    = s => { const h=Math.floor(s/3600),m=Math.floor((s%3600)/60); return h===0?`${m} min`:m===0?`${h} hod`:`${h}h ${m}m`; };
+    const fmtMoney  = (n,c="CZK") => new Intl.NumberFormat("cs-CZ",{style:"currency",currency:c||"CZK",minimumFractionDigits:0}).format(n||0);
+    const fmtDate   = d => d ? new Date(d).toLocaleDateString("cs-CZ") : "—";
+    const today     = () => new Date().toISOString().slice(0,10);
+    const totalSecs = (entries,oid) => entries.filter(e=>e.orderId===oid).reduce((s,e)=>s+(e.duration||0),0);
+    const STAGES    = ["Poptávka","Nabídka","V řešení","Fakturováno","Zaplaceno"];
+    const COLORS    = ["#f59e0b","#3b82f6","#10b981","#ef4444","#8b5cf6","#ec4899","#06b6d4","#f97316"];
+    const nextInvNum = invs => `FV-${new Date().getFullYear()}-${String(invs.length+1).padStart(3,"0")}`;
+
+    // ─── PDF ─────────────────────────────────────────────────────────────────
+    const printInvoice = (inv, client) => {
+      const items = Array.isArray(inv.items) ? inv.items : [];
+      const rows = items.map(it=>`<tr><td>${it.desc}</td><td style="text-align:center">${it.qty}</td><td style="text-align:right">${fmtMoney(it.price)}</td><td style="text-align:right">${fmtMoney(it.qty*it.price)}</td></tr>`).join("");
+      const w = window.open("","_blank");
+      w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${inv.number}</title>
+      <style>body{font-family:'Segoe UI',sans-serif;color:#111;margin:0;padding:36px;font-size:14px}
+      .hdr{display:flex;justify-content:space-between;margin-bottom:32px}.logo{font-size:24px;font-weight:800}
+      .inv-num{font-size:12px;color:#666;margin-top:3px}.parties{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:28px}
+      .party h3{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#999;margin:0 0 6px}.party p{margin:2px 0;font-size:13px}
+      .party .nm{font-weight:700;font-size:15px}.dates{display:flex;gap:24px;margin-bottom:24px;padding:12px;background:#f9fafb;border-radius:8px}
+      .di span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#999;margin-bottom:2px}.di strong{font-size:13px}
+      table{width:100%;border-collapse:collapse;margin-bottom:16px}
+      thead th{background:#111;color:#fff;padding:9px 12px;text-align:left;font-size:11px;font-weight:700}
+      tbody td{padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:13px}
+      .tot{display:flex;justify-content:flex-end;margin-top:12px}
+      .tot-box{background:#111;color:#fff;padding:14px 20px;border-radius:8px;min-width:180px}
+      .tot-box span{font-size:11px;opacity:.6;display:block;margin-bottom:3px}.tot-box strong{font-size:22px;font-weight:800}
+      .note{margin-top:24px;padding:12px;background:#fffbeb;border-left:3px solid #f59e0b;font-size:12px;color:#78350f}
+      .footer{margin-top:36px;padding-top:12px;border-top:1px solid #eee;font-size:10px;color:#999;text-align:center}
+      @media print{button{display:none!important}}</style></head><body>
+      <div class="hdr"><div><div class="logo">${client?.company||client?.name||"—"}</div><div class="inv-num">Faktura č. ${inv.number}</div></div>
+      <button onclick="window.print()" style="background:#111;color:#fff;border:none;padding:8px 18px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700">🖨 Tisknout / PDF</button></div>
+      <div class="parties"><div class="party"><h3>Dodavatel</h3><p class="nm">Vaše jméno / firma</p><p>Vaše adresa</p><p>IČO: 00000000</p></div>
+      <div class="party"><h3>Odběratel</h3><p class="nm">${client?.company||client?.name||inv.recipient||"—"}</p>
+      ${client?`<p>${client.address||""} ${client.city||""}</p><p>IČO: ${client.ico||"—"}</p>${client.dic?`<p>DIČ: ${client.dic}</p>`:""}`:""}</div></div>
+      <div class="dates"><div class="di"><span>Datum vystavení</span><strong>${fmtDate(inv.issued)}</strong></div><div class="di"><span>Datum splatnosti</span><strong>${fmtDate(inv.dueDate)}</strong></div></div>
+      <table><thead><tr><th>Popis</th><th style="text-align:center">Ks</th><th style="text-align:right">Cena/ks</th><th style="text-align:right">Celkem</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="tot"><div class="tot-box"><span>K úhradě</span><strong>${fmtMoney(inv.amount,inv.currency)}</strong></div></div>
+      ${inv.note?`<div class="note">${inv.note}</div>`:""}
+      <div class="footer">Management System</div></body></html>`);
+      w.document.close();
+    };
+
+    // ─── API hook ─────────────────────────────────────────────────────────────
+    function useSheets(scriptUrl) {
+      const [data, setData]     = useState({clients:[],orders:[],entries:[],invoices:[]});
+      const [loading, setLoading] = useState(true);
+      const [error, setError]   = useState(null);
+      const [syncing, setSyncing] = useState(false);
+
+      const fetchAll = useCallback(async () => {
+        if (!scriptUrl) { setLoading(false); return; }
+        setLoading(true);
+        try {
+          const res = await fetch(`${scriptUrl}?action=getAll`);
+          const json = await res.json();
+          if (json.error) throw new Error(json.error);
+          setData({
+            clients:  json.clients  || [],
+            orders:   json.orders   || [],
+            entries:  json.entries  || [],
+            invoices: json.invoices || [],
+          });
+          setError(null);
+        } catch(e) {
+          setError("Nepodařilo se načíst data: " + e.message);
+        } finally {
+          setLoading(false);
+        }
+      }, [scriptUrl]);
+
+      useEffect(() => { fetchAll(); }, [fetchAll]);
+
+      const mutate = useCallback(async (action, sheet, payload) => {
+        setSyncing(true);
+        try {
+          const res = await fetch(scriptUrl, {
+            method: "POST",
+            body: JSON.stringify({ action, sheet, ...payload }),
+          });
+          const json = await res.json();
+          if (json.error) throw new Error(json.error);
+          setData(prev => {
+            const list = [...(prev[sheet]||[])];
+            if (action === "create") return { ...prev, [sheet]: [...list, json.data] };
+            if (action === "update") return { ...prev, [sheet]: list.map(r => r.id === json.data.id ? json.data : r) };
+            if (action === "delete") return { ...prev, [sheet]: list.filter(r => r.id !== json.data.id) };
+            return prev;
+          });
+          return json.data;
+        } catch(e) {
+          setError("Chyba při ukládání: " + e.message);
+          throw e;
+        } finally {
+          setSyncing(false);
+        }
+      }, [scriptUrl]);
+
+      const api = {
+        createClient: d      => mutate("create","clients",{data:d}),
+        updateClient: (id,d) => mutate("update","clients",{id,data:{...d,id}}),
+        deleteClient: id     => mutate("delete","clients",{id}),
+        createOrder:  d      => mutate("create","orders",{data:d}),
+        updateOrder:  (id,d) => mutate("update","orders",{id,data:{...d,id}}),
+        deleteOrder:  id     => mutate("delete","orders",{id}),
+        archiveOrder: id     => { const o=data.orders.find(x=>x.id===id); return o?mutate("update","orders",{id,data:{...o,status:"archived"}}):Promise.resolve(); },
+        restoreOrder: id     => { const o=data.orders.find(x=>x.id===id); return o?mutate("update","orders",{id,data:{...o,status:"active"}}):Promise.resolve(); },
+        setStage:     (id,stage) => { const o=data.orders.find(x=>x.id===id); return o?mutate("update","orders",{id,data:{...o,stage}}):Promise.resolve(); },
+        createEntry:  d      => mutate("create","entries",{data:d}),
+        deleteEntry:  id     => mutate("delete","entries",{id}),
+        createInvoice: d     => mutate("create","invoices",{data:d}),
+        setInvoiceStatus: (id,status) => { const i=data.invoices.find(x=>x.id===id); return i?mutate("update","invoices",{id,data:{...i,status}}):Promise.resolve(); },
+        refresh: fetchAll,
+      };
+
+      return { data, loading, error, syncing, api };
+    }
+
+    // ─── Setup Screen ─────────────────────────────────────────────────────────
+    function SetupScreen({ onSave }) {
+      const [url, setUrl] = useState("");
+      return (
+        <div className="setup-screen">
+          <div className="setup-box">
+            <div style={{fontSize:28,marginBottom:8}}>📋</div>
+            <h1 style={{fontSize:22,fontWeight:800,letterSpacing:"-.03em",marginBottom:6}}>Management System</h1>
+            <p style={{color:"#64748b",fontSize:14,marginBottom:24,lineHeight:1.6}}>Vlož URL svého Google Apps Script pro propojení s databází.</p>
+            <label className="lbl">Apps Script URL</label>
+            <input className="inp" value={url} onChange={e=>setUrl(e.target.value)}
+              placeholder="https://script.google.com/macros/s/..." style={{marginBottom:16}} />
+            <button className="btn bp" style={{width:"100%",justifyContent:"center"}}
+              onClick={()=>url.trim()&&onSave(url.trim())} disabled={!url.trim()}>
+              Připojit →
+            </button>
+            <div style={{marginTop:20,padding:14,background:"#13151f",borderRadius:10,fontSize:12,color:"#64748b",lineHeight:1.7}}>
+              Nemáš ještě URL? V Google Sheets:<br/>
+              <strong style={{color:"#94a3b8"}}>Rozšíření → Apps Script → Nasadit → Nová nasazení</strong><br/>
+              Typ: Webová aplikace, Přístup: Kdokoli
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── App ──────────────────────────────────────────────────────────────────
+    function App() {
+      const [scriptUrl, setScriptUrl] = useState(() => localStorage.getItem(STORAGE_KEY_URL) || "");
+      const [view, setView]   = useState("dashboard");
+      const [modal, setModal] = useState(null);
+      const [timer, setTimer] = useState({running:false,orderId:null,elapsed:0,desc:""});
+      const timerRef = useRef(null);
+      const { data, loading, error, syncing, api } = useSheets(scriptUrl);
+      const { clients, orders, entries, invoices } = data;
+
+      const saveUrl = url => { localStorage.setItem(STORAGE_KEY_URL, url); setScriptUrl(url); };
+
+      useEffect(() => {
+        if (timer.running) timerRef.current = setInterval(() => setTimer(t=>({...t,elapsed:t.elapsed+1})),1000);
+        else clearInterval(timerRef.current);
+        return () => clearInterval(timerRef.current);
+      }, [timer.running]);
+
+      const stopTimer = async () => {
+        if (timer.elapsed > 0) await api.createEntry({orderId:timer.orderId,description:timer.desc||"Práce",duration:timer.elapsed,date:today()});
+        setTimer({running:false,orderId:null,elapsed:0,desc:""});
+      };
+
+      const activeOrders   = orders.filter(o=>o.status==="active");
+      const archivedOrders = orders.filter(o=>o.status==="archived");
+      const getClient = id => clients.find(c=>c.id===Number(id));
+      const getOrder  = id => orders.find(o=>o.id===Number(id));
+
+      if (!scriptUrl) return <SetupScreen onSave={saveUrl} />;
+
+      const NAV = [
+        ["dashboard","⊞","Přehled"],
+        ["clients","◉","Klienti",clients.length],
+        ["orders","◈","Zakázky",activeOrders.length],
+        ["archive","⊡","Archiv",archivedOrders.length],
+        ["time","◷","Čas"],
+        ["invoices","◻","Faktury",invoices.length],
+        ["reports","◑","Reporty"],
+      ];
+
+      return (
+        <div style={{display:"flex",minHeight:"100vh"}}>
+          {/* Sidebar */}
+          <div id="sidebar" style={{width:200,background:"#09090f",borderRight:"1px solid #1a1f2e",padding:"20px 12px",display:"flex",flexDirection:"column",gap:3,flexShrink:0,position:"sticky",top:0,height:"100vh",overflowY:"auto"}}>
+            <div style={{padding:"2px 8px 18px",borderBottom:"1px solid #1a1f2e",marginBottom:8}}>
+              <div style={{fontSize:16,fontWeight:800,color:"#f59e0b",letterSpacing:"-.03em"}}>Management</div>
+              <div style={{fontSize:10,color:"#334155",marginTop:1}}>System</div>
+            </div>
+            {NAV.map(([id,icon,label,badge])=>(
+              <button key={id} className={`ni ${view===id?"act":""}`} onClick={()=>setView(id)}>
+                <span style={{fontSize:15,width:18,textAlign:"center"}}>{icon}</span>
+                <span style={{flex:1}}>{label}</span>
+                {badge!==undefined&&<span style={{background:"#1a1f2e",color:"#475569",fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:6}}>{badge}</span>}
+              </button>
+            ))}
+            <div style={{flex:1}}/>
+            <div style={{padding:"12px 8px",borderTop:"1px solid #1a1f2e",fontSize:11,color:"#334155"}}>
+              <div>Celkový obrat</div>
+              <div style={{color:"#f59e0b",fontWeight:800,fontSize:14,fontFamily:"'JetBrains Mono',monospace"}}>{fmtMoney(orders.reduce((s,o)=>s+(o.price||0),0))}</div>
+              <button className="btn bg" style={{fontSize:10,padding:"3px 8px",marginTop:8,width:"100%"}} onClick={()=>{localStorage.removeItem(STORAGE_KEY_URL);setScriptUrl("");}}>⚙ Změnit URL</button>
+            </div>
+          </div>
+
+          {/* Main */}
+          <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            {error && (
+              <div className="err-bar">⚠ {error}
+                <button className="btn bg" style={{fontSize:11,padding:"3px 10px",marginLeft:"auto"}} onClick={api.refresh}>Zkusit znovu</button>
+              </div>
+            )}
+            {timer.running && (
+              <div className="timer-bar">
+                <div className="dot" style={{background:getOrder(timer.orderId)?.color||"#f59e0b",boxShadow:`0 0 10px ${getOrder(timer.orderId)?.color||"#f59e0b"}88`,width:11,height:11}}/>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:11,color:"#64748b"}}>{getOrder(timer.orderId)?.name}</div>
+                  <input className="inp" style={{padding:"2px 8px",fontSize:12,width:200,marginTop:2,background:"#13151f"}} placeholder="Popis práce..." value={timer.desc} onChange={e=>setTimer(t=>({...t,desc:e.target.value}))}/>
+                </div>
+                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:26,fontWeight:600,color:"#f59e0b"}}>{fmtTimer(timer.elapsed)}</div>
+                <button className="btn bd" onClick={stopTimer}>⏹ Uložit</button>
+              </div>
+            )}
+            <div style={{flex:1,overflow:"auto",padding:"28px 32px"}}>
+              {loading ? (
+                <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"60vh",flexDirection:"column",gap:12}}>
+                  <div style={{fontSize:28,animation:"spin 1s linear infinite"}}>⟳</div>
+                  <div style={{color:"#475569"}}>Načítám data z Google Sheets…</div>
+                </div>
+              ) : (
+                <>
+                  {view==="dashboard" && <Dashboard {...{orders,clients,entries,invoices,activeOrders,setView,fmtMoney,fmtDur,totalSecs,fmtDate,setModal}}/>}
+                  {view==="clients"   && <Clients   {...{clients,orders,entries,api,setModal,fmtMoney,fmtDur,totalSecs,fmtDate}}/>}
+                  {view==="orders"    && <Orders    {...{orders:activeOrders,clients,entries,timer,setModal,api,fmtMoney,fmtDur,totalSecs,fmtDate,getClient,startTimer:id=>setTimer({running:true,orderId:id,elapsed:0,desc:""})}}/>}
+                  {view==="archive"   && <Archive   {...{orders:archivedOrders,clients,entries,api,fmtMoney,fmtDur,totalSecs,fmtDate,getClient}}/>}
+                  {view==="time"      && <Time      {...{orders,entries,timer,setModal,api,fmtDur,totalSecs,getOrder,getClient,startTimer:id=>setTimer({running:true,orderId:id,elapsed:0,desc:""}),fmtTimer}}/>}
+                  {view==="invoices"  && <Invoices  {...{invoices,orders,clients,setModal,fmtMoney,fmtDate,getClient,getOrder,api,printInvoice}}/>}
+                  {view==="reports"   && <Reports   {...{orders,clients,entries,invoices,fmtMoney,fmtDur,totalSecs}}/>}
+                </>
+              )}
+            </div>
+          </div>
+
+          {syncing && <div className="sync-badge">⟳ Ukládám…</div>}
+
+          {modal && (
+            <div className="overlay" onClick={()=>setModal(null)}>
+              <div className="modal" onClick={e=>e.stopPropagation()}>
+                {modal.type==="order"   && <OrderModal   data={modal.data} clients={clients} onSave={async d=>{modal.data?.id?await api.updateOrder(modal.data.id,d):await api.createOrder({...d,status:"active",stage:"Poptávka",created:today()});setModal(null);}} onClose={()=>setModal(null)}/>}
+                {modal.type==="client"  && <ClientModal  data={modal.data} onSave={async d=>{modal.data?.id?await api.updateClient(modal.data.id,d):await api.createClient(d);setModal(null);}} onClose={()=>setModal(null)}/>}
+                {modal.type==="entry"   && <EntryModal   orders={activeOrders} defaultId={modal.orderId} onSave={async d=>{await api.createEntry(d);setModal(null);}} onClose={()=>setModal(null)}/>}
+                {modal.type==="invoice" && <InvoiceModal orders={orders} clients={clients} entries={entries} totalSecs={totalSecs} fmtDur={fmtDur} fmtMoney={fmtMoney} onSave={async d=>{await api.createInvoice({...d,issued:today(),number:nextInvNum(invoices)});setModal(null);}} onClose={()=>setModal(null)}/>}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ─── Dashboard ────────────────────────────────────────────────────────────
+    function Dashboard({orders,clients,entries,invoices,activeOrders,setView,fmtMoney,fmtDur,totalSecs,fmtDate,setModal}){
+      const paid=invoices.filter(i=>i.status==="paid");
+      const pending=invoices.filter(i=>i.status!=="paid");
+      const stats=[
+        {label:"Aktivní zakázky",v:activeOrders.length,color:"#f59e0b",icon:"◈",click:"orders"},
+        {label:"Klienti",v:clients.length,color:"#3b82f6",icon:"◉",click:"clients"},
+        {label:"Zaplaceno",v:fmtMoney(paid.reduce((s,i)=>s+i.amount,0)),color:"#10b981",icon:"✓",click:"invoices"},
+        {label:"Odpracováno",v:fmtDur(entries.reduce((s,e)=>s+(e.duration||0),0)),color:"#8b5cf6",icon:"◷",click:"time"},
+      ];
+      return(
+        <div>
+          <div style={{marginBottom:28}}>
+            <h1 style={{fontSize:28,fontWeight:800,letterSpacing:"-.04em"}}>Přehled</h1>
+            <p style={{color:"#475569",fontSize:14,marginTop:4}}>{new Date().toLocaleDateString("cs-CZ",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</p>
+          </div>
+          <div className="grid4" style={{marginBottom:22}}>
+            {stats.map(s=>(
+              <div key={s.label} className="statcard" onClick={()=>setView(s.click)}>
+                <div style={{fontSize:18,marginBottom:10}}>{s.icon}</div>
+                <div style={{fontSize:22,fontWeight:800,color:s.color,fontFamily:"'JetBrains Mono',monospace"}}>{s.v}</div>
+                <div style={{fontSize:13,fontWeight:600,marginTop:3}}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+          {pending.length>0&&(
+            <div style={{background:"#1a0d00",border:"1px solid #451a00",borderRadius:12,padding:"14px 18px",marginBottom:20,display:"flex",alignItems:"center",gap:14}}>
+              <span style={{fontSize:18}}>⚠️</span>
+              <div><div style={{fontWeight:700,color:"#fbbf24"}}>{pending.length} nezaplacen{pending.length===1?"á faktura":"é faktury"}</div>
+              <div style={{fontSize:12,color:"#92400e"}}>{fmtMoney(pending.reduce((s,i)=>s+i.amount,0))}</div></div>
+              <button className="btn" style={{marginLeft:"auto",background:"#f59e0b22",color:"#f59e0b",border:"1px solid #f59e0b44",fontSize:12}} onClick={()=>setView("invoices")}>Zobrazit</button>
+            </div>
+          )}
+          <div className="grid2">
+            <div className="card">
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:16}}>
+                <div className="sec-title" style={{margin:0}}>Aktivní zakázky</div>
+                <button className="btn bg" style={{fontSize:11,padding:"4px 10px"}} onClick={()=>setView("orders")}>Vše →</button>
+              </div>
+              {activeOrders.slice(0,5).map(o=>{
+                const cl=clients.find(c=>c.id===Number(o.clientId));
+                const dl=Math.ceil((new Date(o.deadline)-new Date())/86400000);
+                const pct=Math.min(100,Math.max(0,(new Date()-new Date(o.created))/(new Date(o.deadline)-new Date(o.created))*100))||0;
+                return(
+                  <div key={o.id} style={{display:"flex",alignItems:"center",gap:11,marginBottom:13}}>
+                    <div className="dot" style={{background:o.color}}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{o.name}</div>
+                      <div style={{fontSize:11,color:"#475569"}}>{cl?.company||cl?.name} · <span style={{color:dl<14?"#f87171":"#64748b"}}>{dl<0?"Po termínu!":dl+"d"}</span></div>
+                      <div className="pgbar"><div className="pgfill" style={{width:`${pct}%`,background:pct>85?"#ef4444":o.color}}/></div>
+                    </div>
+                    <span style={{fontSize:11,color:"#f59e0b",fontFamily:"'JetBrains Mono',monospace",flexShrink:0}}>{fmtMoney(o.price)}</span>
+                  </div>
+                );
+              })}
+              {activeOrders.length===0&&<div style={{color:"#334155",fontSize:13,textAlign:"center",padding:"20px 0"}}>Žádné aktivní zakázky</div>}
+            </div>
+            <div className="card">
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:16}}>
+                <div className="sec-title" style={{margin:0}}>Poslední faktury</div>
+                <button className="btn bg" style={{fontSize:11,padding:"4px 10px"}} onClick={()=>setView("invoices")}>Vše →</button>
+              </div>
+              {[...invoices].reverse().slice(0,5).map(inv=>{
+                const cl=clients.find(c=>c.id===Number(inv.clientId));
+                const sc=inv.status==="paid"?{c:"#10b981",l:"Zaplaceno"}:inv.status==="sent"?{c:"#f59e0b",l:"Odesláno"}:{c:"#64748b",l:"Koncept"};
+                return(
+                  <div key={inv.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                    <div style={{background:"#13151f",borderRadius:7,padding:"3px 7px",fontSize:10,fontFamily:"'JetBrains Mono',monospace",color:"#64748b",flexShrink:0}}>{inv.number}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cl?.company||cl?.name||inv.recipient}</div>
+                      <div style={{fontSize:11,color:"#475569"}}>Splatnost: {fmtDate(inv.dueDate)}</div>
+                    </div>
+                    <div style={{textAlign:"right",flexShrink:0}}>
+                      <div style={{fontSize:12,fontWeight:700,fontFamily:"'JetBrains Mono',monospace"}}>{fmtMoney(inv.amount)}</div>
+                      <div style={{fontSize:10,color:sc.c,fontWeight:700}}>{sc.l}</div>
+                    </div>
+                  </div>
+                );
+              })}
+              {invoices.length===0&&<div style={{color:"#334155",fontSize:13,textAlign:"center",padding:"20px 0"}}>Žádné faktury</div>}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Clients ──────────────────────────────────────────────────────────────
+    function Clients({clients,orders,entries,api,setModal,fmtMoney,fmtDur,totalSecs,fmtDate}){
+      const [detail,setDetail]=useState(null);
+      const c=detail?clients.find(x=>x.id===detail):null;
+      if(c){
+        const co=orders.filter(o=>Number(o.clientId)===c.id);
+        const ce=entries.filter(e=>co.some(o=>o.id===e.orderId));
+        return(
+          <div>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
+              <button className="btn bg" style={{fontSize:12}} onClick={()=>setDetail(null)}>← Zpět</button>
+              <div style={{flex:1}}><h1 style={{fontSize:22,fontWeight:800}}>{c.company||c.name}</h1>{c.company&&<div style={{fontSize:13,color:"#64748b"}}>{c.name}</div>}</div>
+              <button className="btn bg" style={{fontSize:12}} onClick={()=>setModal({type:"client",data:c})}>✎ Upravit</button>
+              <button className="btn bd" style={{fontSize:12}} onClick={async()=>{await api.deleteClient(c.id);setDetail(null);}}>🗑</button>
+            </div>
+            <div className="grid2" style={{marginBottom:16}}>
+              <div className="card">
+                <div className="sec-title">Kontakt</div>
+                {[["Email",c.email],["Telefon",c.phone],["Adresa",`${c.address||""} ${c.city||""}`],["IČO",c.ico],["DIČ",c.dic]].filter(([,v])=>String(v||"").trim()).map(([k,v])=>(
+                  <div key={k} style={{display:"flex",gap:10,marginBottom:8}}>
+                    <span style={{fontSize:12,color:"#475569",width:55,flexShrink:0}}>{k}:</span>
+                    <span style={{fontSize:13}}>{v}</span>
+                  </div>
+                ))}
+                {c.notes&&<div style={{marginTop:10,background:"#13151f",borderRadius:8,padding:10,fontSize:12,color:"#94a3b8",lineHeight:1.6}}>{c.notes}</div>}
+              </div>
+              <div className="card">
+                <div className="sec-title">Souhrn</div>
+                {[["Zakázek",co.length],["Aktivních",co.filter(o=>o.status==="active").length],["Celková hodnota",fmtMoney(co.reduce((s,o)=>s+(o.price||0),0))],["Odpracováno",fmtDur(ce.reduce((s,e)=>s+(e.duration||0),0))]].map(([k,v])=>(
+                  <div key={k} style={{display:"flex",justifyContent:"space-between",marginBottom:10,borderBottom:"1px solid #1a1f2e",paddingBottom:10}}>
+                    <span style={{fontSize:12,color:"#64748b"}}>{k}</span>
+                    <span style={{fontSize:13,fontWeight:700,fontFamily:"'JetBrains Mono',monospace"}}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="card" style={{padding:0}}>
+              <div style={{padding:"14px 16px",borderBottom:"1px solid #1a1f2e"}}><div className="sec-title" style={{margin:0}}>Zakázky klienta</div></div>
+              <table className="tbl"><thead><tr><th>Zakázka</th><th>Stav</th><th>Odpracováno</th><th>Hodnota</th><th>Deadline</th></tr></thead>
+              <tbody>{co.map(o=>(
+                <tr key={o.id}>
+                  <td><div style={{display:"flex",alignItems:"center",gap:8}}><div className="dot" style={{background:o.color}}/><span style={{fontWeight:600}}>{o.name}</span></div></td>
+                  <td><span style={{fontSize:11,padding:"2px 9px",borderRadius:20,fontWeight:700,background:"#13151f",color:o.stage==="Zaplaceno"?"#34d399":o.stage==="Fakturováno"?"#f59e0b":"#94a3b8"}}>{o.stage}</span></td>
+                  <td style={{fontFamily:"'JetBrains Mono',monospace",color:"#8b5cf6"}}>{fmtDur(totalSecs(entries,o.id))}</td>
+                  <td style={{fontFamily:"'JetBrains Mono',monospace",color:"#f59e0b",fontWeight:700}}>{fmtMoney(o.price)}</td>
+                  <td style={{color:"#64748b",fontSize:12}}>{fmtDate(o.deadline)}</td>
+                </tr>
+              ))}{co.length===0&&<tr><td colSpan={5} style={{textAlign:"center",padding:28,color:"#334155"}}>Žádné zakázky</td></tr>}</tbody></table>
+            </div>
+          </div>
+        );
+      }
+      return(
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
+            <div><h1 style={{fontSize:28,fontWeight:800,letterSpacing:"-.04em"}}>Klienti</h1><p style={{color:"#475569",fontSize:14,marginTop:3}}>{clients.length} klientů</p></div>
+            <button className="btn bp" onClick={()=>setModal({type:"client",data:null})}>+ Nový klient</button>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(290px,1fr))",gap:14}}>
+            {clients.map(c=>{
+              const co=orders.filter(o=>Number(o.clientId)===c.id);
+              return(
+                <div key={c.id} className="card" style={{cursor:"pointer",borderLeft:`3px solid ${c.color||"#f59e0b"}`}} onClick={()=>setDetail(c.id)}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+                    <div><div style={{fontWeight:700,fontSize:15}}>{c.company||c.name}</div>{c.company&&<div style={{fontSize:12,color:"#64748b",marginTop:2}}>{c.name}</div>}</div>
+                    <button className="btn bg" style={{fontSize:11,padding:"4px 9px"}} onClick={e=>{e.stopPropagation();setModal({type:"client",data:c});}}>✎</button>
+                  </div>
+                  <div style={{fontSize:12,color:"#64748b",marginBottom:12,display:"flex",flexDirection:"column",gap:3}}>
+                    {c.email&&<span>✉ {c.email}</span>}{c.phone&&<span>📞 {c.phone}</span>}
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",paddingTop:10,borderTop:"1px solid #1a1f2e",fontSize:12}}>
+                    <span style={{color:"#64748b"}}>{co.length} zakázek</span>
+                    <span style={{fontFamily:"'JetBrains Mono',monospace",color:"#f59e0b",fontWeight:700}}>{fmtMoney(co.reduce((s,o)=>s+(o.price||0),0))}</span>
+                  </div>
+                </div>
+              );
+            })}
+            {clients.length===0&&<div style={{gridColumn:"1/-1",textAlign:"center",padding:"60px 0",color:"#334155"}}><div style={{fontSize:32,marginBottom:10}}>◉</div><div style={{fontSize:16,fontWeight:700}}>Žádní klienti</div></div>}
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Orders ───────────────────────────────────────────────────────────────
+    function Orders({orders,clients,entries,timer,setModal,api,fmtMoney,fmtDur,totalSecs,fmtDate,getClient,startTimer}){
+      return(
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
+            <div><h1 style={{fontSize:28,fontWeight:800,letterSpacing:"-.04em"}}>Aktivní zakázky</h1><p style={{color:"#475569",fontSize:14,marginTop:3}}>{orders.length} zakázek</p></div>
+            <button className="btn bp" onClick={()=>setModal({type:"order",data:null})}>+ Nová zakázka</button>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(330px,1fr))",gap:15}}>
+            {orders.map(o=>{
+              const cl=getClient(o.clientId);
+              const isRun=timer.running&&timer.orderId===o.id;
+              const dl=Math.ceil((new Date(o.deadline)-new Date())/86400000);
+              const pct=Math.min(100,Math.max(0,(new Date()-new Date(o.created))/(new Date(o.deadline)-new Date(o.created))*100))||0;
+              return(
+                <div key={o.id} className="card" style={{borderTop:`2px solid ${o.color}`}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:15,fontWeight:700,marginBottom:2}}>{o.name}</div>
+                      <div style={{fontSize:12,color:"#64748b"}}>{cl?.company||cl?.name||"—"}</div>
+                    </div>
+                    <div style={{fontSize:15,fontWeight:800,color:"#f59e0b",fontFamily:"'JetBrains Mono',monospace",flexShrink:0,marginLeft:8}}>{fmtMoney(o.price)}</div>
+                  </div>
+                  {o.description&&<div style={{fontSize:12,color:"#475569",marginBottom:10,lineHeight:1.5}}>{o.description}</div>}
+                  <div style={{marginBottom:10}}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#475569",marginBottom:4}}>
+                      <span>{fmtDate(o.deadline)}</span>
+                      <span style={{color:dl<0?"#f87171":dl<14?"#fbbf24":"#64748b"}}>{dl<0?"⚠ Po termínu":dl+" dní"}</span>
+                    </div>
+                    <div className="pgbar"><div className="pgfill" style={{width:`${pct}%`,background:pct>85?"#ef4444":o.color}}/></div>
+                  </div>
+                  <select className="inp" style={{fontSize:12,padding:"5px 10px",marginBottom:12}} value={o.stage||"Poptávka"} onChange={e=>api.setStage(o.id,e.target.value)}>
+                    {STAGES.map(s=><option key={s}>{s}</option>)}
+                  </select>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingTop:10,borderTop:"1px solid #1a1f2e"}}>
+                    <div style={{fontSize:11,color:"#8b5cf6",fontFamily:"'JetBrains Mono',monospace"}}>⏱ {fmtDur(totalSecs(entries,o.id))}</div>
+                    <div style={{display:"flex",gap:5}}>
+                      <button className="btn bg" style={{fontSize:11,padding:"4px 9px"}} onClick={()=>setModal({type:"order",data:o})}>✎</button>
+                      {isRun?<span style={{fontSize:11,color:"#10b981",padding:"4px 10px",fontWeight:700}}>● Běží</span>
+                            :<button className="btn bs" style={{fontSize:11,padding:"4px 9px"}} onClick={()=>startTimer(o.id)}>▶</button>}
+                      <button className="btn bg" style={{fontSize:11,padding:"4px 9px"}} onClick={()=>api.archiveOrder(o.id)}>⊡</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {orders.length===0&&<div style={{gridColumn:"1/-1",textAlign:"center",padding:"60px 0",color:"#334155"}}><div style={{fontSize:32,marginBottom:10}}>◈</div><div style={{fontSize:16,fontWeight:700}}>Žádné zakázky</div></div>}
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Archive ──────────────────────────────────────────────────────────────
+    function Archive({orders,clients,entries,api,fmtMoney,fmtDur,totalSecs,fmtDate,getClient}){
+      return(
+        <div>
+          <div style={{marginBottom:24}}><h1 style={{fontSize:28,fontWeight:800,letterSpacing:"-.04em"}}>Archiv</h1></div>
+          <div className="card" style={{padding:0}}>
+            <table className="tbl">
+              <thead><tr><th>Zakázka</th><th>Klient</th><th>Stav</th><th>Čas</th><th>Hodnota</th><th></th></tr></thead>
+              <tbody>
+                {orders.map(o=>{
+                  const cl=getClient(o.clientId);
+                  return(<tr key={o.id}>
+                    <td><div style={{display:"flex",alignItems:"center",gap:8}}><div className="dot" style={{background:o.color}}/><span style={{fontWeight:600}}>{o.name}</span></div></td>
+                    <td style={{color:"#94a3b8"}}>{cl?.company||cl?.name}</td>
+                    <td><span style={{fontSize:11,padding:"2px 9px",borderRadius:20,fontWeight:700,background:"#13151f",color:o.stage==="Zaplaceno"?"#34d399":"#f59e0b"}}>{o.stage}</span></td>
+                    <td style={{fontFamily:"'JetBrains Mono',monospace",color:"#8b5cf6"}}>{fmtDur(totalSecs(entries,o.id))}</td>
+                    <td style={{fontFamily:"'JetBrains Mono',monospace",color:"#f59e0b",fontWeight:700}}>{fmtMoney(o.price)}</td>
+                    <td><div style={{display:"flex",gap:5,justifyContent:"flex-end"}}>
+                      <button className="btn bg" style={{fontSize:11,padding:"3px 9px"}} onClick={()=>api.restoreOrder(o.id)}>↩</button>
+                      <button className="btn bd" style={{fontSize:11,padding:"3px 9px"}} onClick={()=>api.deleteOrder(o.id)}>🗑</button>
+                    </div></td>
+                  </tr>);
+                })}
+                {orders.length===0&&<tr><td colSpan={6} style={{textAlign:"center",padding:36,color:"#334155"}}>Archiv je prázdný</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Time ─────────────────────────────────────────────────────────────────
+    function Time({orders,entries,timer,setModal,api,fmtDur,totalSecs,getOrder,getClient,startTimer,fmtTimer}){
+      const by=orders.map(o=>({o,secs:totalSecs(entries,o.id),cnt:entries.filter(e=>e.orderId===o.id).length})).filter(x=>x.cnt>0);
+      return(
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
+            <div><h1 style={{fontSize:28,fontWeight:800,letterSpacing:"-.04em"}}>Sledování času</h1><p style={{color:"#475569",fontSize:14,marginTop:3}}>Celkem {fmtDur(entries.reduce((s,e)=>s+(e.duration||0),0))}</p></div>
+            <button className="btn bp" onClick={()=>setModal({type:"entry"})}>+ Ruční záznam</button>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"250px 1fr",gap:18}}>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {by.map(({o,secs,cnt})=>{
+                const cl=getClient(o.clientId);
+                const isRun=timer.running&&timer.orderId===o.id;
+                return(
+                  <div key={o.id} className="card" style={{padding:14,borderLeft:`2px solid ${o.color}`}}>
+                    <div style={{fontSize:12,fontWeight:700,marginBottom:2}}>{o.name}</div>
+                    <div style={{fontSize:11,color:"#64748b",marginBottom:8}}>{cl?.company||cl?.name}</div>
+                    <div style={{fontSize:20,fontWeight:800,color:o.color,fontFamily:"'JetBrains Mono',monospace"}}>{fmtDur(secs)}</div>
+                    <div style={{fontSize:11,color:"#475569",marginTop:2,marginBottom:8}}>{cnt} záznamů</div>
+                    {isRun?<div style={{fontSize:11,color:"#10b981",textAlign:"center",fontWeight:700,fontFamily:"'JetBrains Mono',monospace"}}>● {fmtTimer(timer.elapsed)}</div>
+                          :o.status==="active"&&<button className="btn bs" style={{fontSize:11,padding:"4px 10px",width:"100%"}} onClick={()=>startTimer(o.id)}>▶ Spustit</button>}
+                  </div>
+                );
+              })}
+              {by.length===0&&<div style={{color:"#334155",fontSize:13}}>Zatím žádné záznamy.</div>}
+            </div>
+            <div className="card" style={{padding:0}}>
+              <table className="tbl">
+                <thead><tr><th>Datum</th><th>Zakázka</th><th>Popis</th><th>Délka</th><th></th></tr></thead>
+                <tbody>
+                  {[...entries].reverse().map(e=>{
+                    const o=getOrder(e.orderId);
+                    const cl=o?getClient(o.clientId):null;
+                    return(<tr key={e.id}>
+                      <td style={{fontSize:12,color:"#64748b",fontFamily:"'JetBrains Mono',monospace"}}>{e.date}</td>
+                      <td><div style={{display:"flex",alignItems:"center",gap:7}}><div className="dot" style={{background:o?.color||"#475569"}}/><span style={{fontSize:12,fontWeight:600}}>{o?.name||"?"}</span></div></td>
+                      <td style={{color:"#94a3b8",fontSize:12}}>{e.description}</td>
+                      <td style={{fontFamily:"'JetBrains Mono',monospace",color:"#8b5cf6",fontWeight:700}}>{fmtDur(e.duration)}</td>
+                      <td><button className="btn bd" style={{fontSize:11,padding:"2px 8px"}} onClick={()=>api.deleteEntry(e.id)}>✕</button></td>
+                    </tr>);
+                  })}
+                  {entries.length===0&&<tr><td colSpan={5} style={{textAlign:"center",padding:36,color:"#334155"}}>Žádné záznamy</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Invoices ─────────────────────────────────────────────────────────────
+    function Invoices({invoices,orders,clients,setModal,fmtMoney,fmtDate,getClient,getOrder,api,printInvoice}){
+      const sc={draft:{c:"#64748b",bg:"#13151f",l:"Koncept"},sent:{c:"#f59e0b",bg:"#1a1000",l:"Odesláno"},paid:{c:"#10b981",bg:"#041a0f",l:"Zaplaceno"}};
+      return(
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
+            <div><h1 style={{fontSize:28,fontWeight:800,letterSpacing:"-.04em"}}>Faktury</h1>
+            <p style={{color:"#475569",fontSize:14,marginTop:3}}>{fmtMoney(invoices.filter(i=>i.status==="paid").reduce((s,i)=>s+i.amount,0))} zaplaceno</p></div>
+            <button className="btn bp" onClick={()=>setModal({type:"invoice"})}>+ Nová faktura</button>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            {[...invoices].reverse().map(inv=>{
+              const cl=getClient(inv.clientId);
+              const s=sc[inv.status]||sc.draft;
+              return(
+                <div key={inv.id} className="card" style={{display:"flex",alignItems:"center",gap:18}}>
+                  <div style={{background:"#13151f",borderRadius:10,padding:"10px 14px",textAlign:"center",minWidth:88,flexShrink:0}}>
+                    <div style={{fontSize:9,color:"#475569",fontWeight:700,textTransform:"uppercase"}}>Faktura</div>
+                    <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:12,color:"#f59e0b",fontWeight:700,marginTop:3}}>{inv.number}</div>
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:700,fontSize:15}}>{cl?.company||cl?.name||inv.recipient}</div>
+                    <div style={{fontSize:12,color:"#64748b",marginTop:3}}>Splatnost: {fmtDate(inv.dueDate)}</div>
+                  </div>
+                  <div style={{textAlign:"right",flexShrink:0}}>
+                    <div style={{fontSize:20,fontWeight:800,fontFamily:"'JetBrains Mono',monospace"}}>{fmtMoney(inv.amount,inv.currency)}</div>
+                    <div style={{marginTop:5}}><span className="badge" style={{background:s.bg,color:s.c,border:`1px solid ${s.c}33`}}>{s.l}</span></div>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:5,flexShrink:0}}>
+                    <button className="btn bg" style={{fontSize:11,padding:"4px 10px"}} onClick={()=>printInvoice(inv,cl)}>🖨 PDF</button>
+                    {inv.status!=="paid"&&<button className="btn bs" style={{fontSize:11,padding:"4px 10px"}} onClick={()=>api.setInvoiceStatus(inv.id,"paid")}>✓ Zaplatit</button>}
+                    {inv.status==="draft"&&<button className="btn bg" style={{fontSize:11,padding:"4px 10px"}} onClick={()=>api.setInvoiceStatus(inv.id,"sent")}>📨 Odeslat</button>}
+                  </div>
+                </div>
+              );
+            })}
+            {invoices.length===0&&<div style={{textAlign:"center",padding:"60px 0",color:"#334155"}}><div style={{fontSize:32,marginBottom:10}}>◻</div><div style={{fontSize:16,fontWeight:700}}>Žádné faktury</div></div>}
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Reports ──────────────────────────────────────────────────────────────
+    function Reports({orders,clients,entries,invoices,fmtMoney,fmtDur,totalSecs}){
+      const tt={background:"#0f1118",border:"1px solid #1a1f2e",borderRadius:8,fontSize:12};
+      const monthlyRevenue=(()=>{
+        const map={};const now=new Date();
+        for(let i=11;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;map[k]={label:d.toLocaleDateString("cs-CZ",{month:"short",year:"2-digit"}),revenue:0,invoiced:0};}
+        invoices.forEach(inv=>{const k=(inv.issued||"").slice(0,7);if(map[k]){map[k].invoiced+=inv.amount||0;if(inv.status==="paid")map[k].revenue+=inv.amount||0;}});
+        return Object.values(map);
+      })();
+      const revByClient=clients.map(c=>({name:c.company||c.name,value:orders.filter(o=>Number(o.clientId)===c.id).reduce((s,o)=>s+(o.price||0),0),color:c.color})).filter(x=>x.value>0).sort((a,b)=>b.value-a.value);
+      const totalRev=invoices.filter(i=>i.status==="paid").reduce((s,i)=>s+(i.amount||0),0);
+      const totalTime=entries.reduce((s,e)=>s+(e.duration||0),0);
+      const avgRate=totalTime>0?Math.round(totalRev/(totalTime/3600)):0;
+      return(
+        <div>
+          <div style={{marginBottom:28}}><h1 style={{fontSize:28,fontWeight:800,letterSpacing:"-.04em"}}>Reporty</h1></div>
+          <div className="grid4" style={{marginBottom:22}}>
+            {[[avgRate?fmtMoney(avgRate):"—","Průměrná hod. sazba","#f59e0b"],[fmtMoney(totalRev),"Celkové tržby","#10b981"],[fmtMoney(invoices.filter(i=>i.status!=="paid").reduce((s,i)=>s+(i.amount||0),0)),"Čekající platby","#ef4444"],[fmtDur(totalTime),"Celkem hodin","#8b5cf6"]].map(([v,l,c])=>(
+              <div key={l} className="statcard"><div style={{fontSize:20,fontWeight:800,color:c,fontFamily:"'JetBrains Mono',monospace",marginBottom:4}}>{v}</div><div style={{fontSize:12,color:"#64748b"}}>{l}</div></div>
+            ))}
+          </div>
+          <div className="grid2" style={{marginBottom:18}}>
+            <div className="card">
+              <div className="sec-title">Tržby — 12 měsíců</div>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={monthlyRevenue} margin={{top:5,right:5,left:-20,bottom:0}}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1a1f2e"/>
+                  <XAxis dataKey="label" tick={{fill:"#475569",fontSize:11}} axisLine={false} tickLine={false}/>
+                  <YAxis tick={{fill:"#475569",fontSize:11}} axisLine={false} tickLine={false} tickFormatter={v=>v>=1000?`${v/1000}k`:v}/>
+                  <Tooltip contentStyle={tt} formatter={v=>[fmtMoney(v),""]}/>
+                  <Bar dataKey="invoiced" fill="#1a1f2e" radius={[3,3,0,0]} name="Fakturováno"/>
+                  <Bar dataKey="revenue" fill="#f59e0b" radius={[3,3,0,0]} name="Zaplaceno"/>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="card">
+              <div className="sec-title">Tržby dle klienta</div>
+              {revByClient.length>0?(
+                <div style={{display:"flex",gap:20,alignItems:"center"}}>
+                  <PieChart width={150} height={150}><Pie data={revByClient} cx={70} cy={70} innerRadius={40} outerRadius={68} dataKey="value" strokeWidth={0}>{revByClient.map((e,i)=><Cell key={i} fill={e.color||COLORS[i%8]}/>)}</Pie><Tooltip contentStyle={tt} formatter={v=>[fmtMoney(v),""]}/></PieChart>
+                  <div style={{flex:1}}>{revByClient.map((c,i)=>(
+                    <div key={c.name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                      <div style={{width:8,height:8,borderRadius:"50%",background:c.color||COLORS[i%8],flexShrink:0}}/>
+                      <div style={{flex:1,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</div>
+                      <div style={{fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:"#f59e0b",fontWeight:700}}>{fmtMoney(c.value)}</div>
+                    </div>
+                  ))}</div>
+                </div>
+              ):<div style={{color:"#334155",fontSize:13,textAlign:"center",padding:"30px 0"}}>Žádná data</div>}
+            </div>
+          </div>
+          <div className="card">
+            <div className="sec-title">Pipeline zakázek</div>
+            <div style={{display:"flex",gap:0,overflowX:"auto"}}>
+              {STAGES.map((stage,i)=>{
+                const st=orders.filter(o=>o.stage===stage);
+                return(
+                  <div key={stage} style={{flex:1,minWidth:130,padding:"0 10px",borderRight:i<STAGES.length-1?"1px solid #1a1f2e":"none"}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:".07em",marginBottom:8}}>{stage}</div>
+                    <div style={{fontSize:20,fontWeight:800,fontFamily:"'JetBrains Mono',monospace"}}>{st.length}</div>
+                    <div style={{fontSize:12,color:"#f59e0b",fontWeight:600,marginTop:3}}>{fmtMoney(st.reduce((s,o)=>s+(o.price||0),0))}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Modals ───────────────────────────────────────────────────────────────
+    function OrderModal({data,clients,onSave,onClose}){
+      const [f,setF]=useState(data||{name:"",clientId:clients[0]?.id||"",description:"",price:"",currency:"CZK",deadline:"",color:"#f59e0b"});
+      const s=(k,v)=>setF(p=>({...p,[k]:v}));
+      return(<div>
+        <div style={{fontSize:18,fontWeight:800,marginBottom:20}}>{data?"Upravit zakázku":"Nová zakázka"}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:13}}>
+          <div><label className="lbl">Název *</label><input className="inp" value={f.name} onChange={e=>s("name",e.target.value)}/></div>
+          <div><label className="lbl">Klient</label><select className="inp" value={f.clientId} onChange={e=>s("clientId",Number(e.target.value))}><option value="">— bez klienta —</option>{clients.map(c=><option key={c.id} value={c.id}>{c.company||c.name}</option>)}</select></div>
+          <div><label className="lbl">Popis</label><textarea className="inp" rows={2} value={f.description} onChange={e=>s("description",e.target.value)} style={{resize:"vertical"}}/></div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 90px",gap:10}}>
+            <div><label className="lbl">Cena</label><input className="inp" type="number" value={f.price} onChange={e=>s("price",Number(e.target.value))}/></div>
+            <div><label className="lbl">Měna</label><select className="inp" value={f.currency} onChange={e=>s("currency",e.target.value)}><option>CZK</option><option>EUR</option><option>USD</option></select></div>
+          </div>
+          <div><label className="lbl">Deadline</label><input className="inp" type="date" value={f.deadline} onChange={e=>s("deadline",e.target.value)}/></div>
+          <div><label className="lbl">Barva</label><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{COLORS.map(c=><div key={c} onClick={()=>s("color",c)} style={{width:24,height:24,borderRadius:"50%",background:c,cursor:"pointer",border:f.color===c?"2px solid #fff":"2px solid transparent"}}/>)}</div></div>
+        </div>
+        <div style={{display:"flex",gap:9,justifyContent:"flex-end",marginTop:20}}>
+          <button className="btn bg" onClick={onClose}>Zrušit</button>
+          <button className="btn bp" onClick={()=>f.name&&onSave(f)} disabled={!f.name}>Uložit</button>
+        </div>
+      </div>);
+    }
+
+    function ClientModal({data,onSave,onClose}){
+      const [f,setF]=useState(data||{name:"",company:"",email:"",phone:"",address:"",city:"",zip:"",ico:"",dic:"",notes:"",color:"#3b82f6"});
+      const s=(k,v)=>setF(p=>({...p,[k]:v}));
+      return(<div>
+        <div style={{fontSize:18,fontWeight:800,marginBottom:20}}>{data?"Upravit klienta":"Nový klient"}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div className="grid2"><div><label className="lbl">Jméno *</label><input className="inp" value={f.name} onChange={e=>s("name",e.target.value)}/></div><div><label className="lbl">Firma</label><input className="inp" value={f.company} onChange={e=>s("company",e.target.value)}/></div></div>
+          <div className="grid2"><div><label className="lbl">Email</label><input className="inp" type="email" value={f.email} onChange={e=>s("email",e.target.value)}/></div><div><label className="lbl">Telefon</label><input className="inp" type="tel" value={f.phone} onChange={e=>s("phone",e.target.value)}/></div></div>
+          <div><label className="lbl">Adresa</label><input className="inp" value={f.address} onChange={e=>s("address",e.target.value)}/></div>
+          <div className="grid2"><div><label className="lbl">Město</label><input className="inp" value={f.city} onChange={e=>s("city",e.target.value)}/></div><div><label className="lbl">PSČ</label><input className="inp" value={f.zip} onChange={e=>s("zip",e.target.value)}/></div></div>
+          <div className="grid2"><div><label className="lbl">IČO</label><input className="inp" value={f.ico} onChange={e=>s("ico",e.target.value)}/></div><div><label className="lbl">DIČ</label><input className="inp" value={f.dic} onChange={e=>s("dic",e.target.value)}/></div></div>
+          <div><label className="lbl">Poznámky</label><textarea className="inp" rows={2} value={f.notes} onChange={e=>s("notes",e.target.value)} style={{resize:"vertical"}}/></div>
+          <div><label className="lbl">Barva</label><div style={{display:"flex",gap:7}}>{COLORS.map(c=><div key={c} onClick={()=>s("color",c)} style={{width:24,height:24,borderRadius:"50%",background:c,cursor:"pointer",border:f.color===c?"2px solid #fff":"2px solid transparent"}}/>)}</div></div>
+        </div>
+        <div style={{display:"flex",gap:9,justifyContent:"flex-end",marginTop:20}}>
+          <button className="btn bg" onClick={onClose}>Zrušit</button>
+          <button className="btn bp" onClick={()=>f.name&&onSave(f)} disabled={!f.name}>Uložit</button>
+        </div>
+      </div>);
+    }
+
+    function EntryModal({orders,defaultId,onSave,onClose}){
+      const [f,setF]=useState({orderId:defaultId||orders[0]?.id||"",description:"",hours:"",minutes:"",date:new Date().toISOString().slice(0,10)});
+      const s=(k,v)=>setF(p=>({...p,[k]:v}));
+      const save=()=>{const dur=(Number(f.hours)||0)*3600+(Number(f.minutes)||0)*60;if(dur>0&&f.orderId)onSave({orderId:Number(f.orderId),description:f.description||"Práce",duration:dur,date:f.date});};
+      return(<div>
+        <div style={{fontSize:18,fontWeight:800,marginBottom:20}}>Ruční záznam</div>
+        <div style={{display:"flex",flexDirection:"column",gap:13}}>
+          <div><label className="lbl">Zakázka</label><select className="inp" value={f.orderId} onChange={e=>s("orderId",e.target.value)}>{orders.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</select></div>
+          <div><label className="lbl">Popis</label><input className="inp" value={f.description} onChange={e=>s("description",e.target.value)} placeholder="Co jste dělali..."/></div>
+          <div className="grid2"><div><label className="lbl">Hodiny</label><input className="inp" type="number" min="0" value={f.hours} onChange={e=>s("hours",e.target.value)}/></div><div><label className="lbl">Minuty</label><input className="inp" type="number" min="0" max="59" value={f.minutes} onChange={e=>s("minutes",e.target.value)}/></div></div>
+          <div><label className="lbl">Datum</label><input className="inp" type="date" value={f.date} onChange={e=>s("date",e.target.value)}/></div>
+        </div>
+        <div style={{display:"flex",gap:9,justifyContent:"flex-end",marginTop:20}}>
+          <button className="btn bg" onClick={onClose}>Zrušit</button>
+          <button className="btn bp" onClick={save}>Uložit</button>
+        </div>
+      </div>);
+    }
+
+    function InvoiceModal({orders,clients,entries,totalSecs,fmtDur,fmtMoney,onSave,onClose}){
+      const [f,setF]=useState({orderId:orders[0]?.id||"",clientId:"",recipient:"",items:[{desc:"",qty:1,price:""}],currency:"CZK",dueDate:"",note:"",status:"draft"});
+      const s=(k,v)=>setF(p=>({...p,[k]:v}));
+      useEffect(()=>{const o=orders.find(x=>x.id===Number(f.orderId));if(o){s("clientId",o.clientId);const c=clients.find(x=>x.id===Number(o.clientId));if(c)s("recipient",c.company||c.name);}}, [f.orderId]);
+      const total=f.items.reduce((sum,it)=>sum+(Number(it.qty)||0)*(Number(it.price)||0),0);
+      const order=orders.find(x=>x.id===Number(f.orderId));
+      const upd=(i,k,v)=>{const items=[...f.items];items[i]={...items[i],[k]:v};s("items",items);};
+      return(<div>
+        <div style={{fontSize:18,fontWeight:800,marginBottom:20}}>Nová faktura</div>
+        <div style={{display:"flex",flexDirection:"column",gap:13}}>
+          <div><label className="lbl">Zakázka</label><select className="inp" value={f.orderId} onChange={e=>s("orderId",Number(e.target.value))}>{orders.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</select></div>
+          {order&&<div style={{background:"#13151f",borderRadius:9,padding:11,fontSize:12,color:"#64748b"}}>Odpracováno: <span style={{color:"#8b5cf6"}}>{fmtDur(totalSecs(entries,order.id))}</span> · Hodnota: <span style={{color:"#f59e0b"}}>{fmtMoney(order.price)}</span></div>}
+          <div><label className="lbl">Příjemce</label><input className="inp" value={f.recipient} onChange={e=>s("recipient",e.target.value)}/></div>
+          <div>
+            <label className="lbl">Položky</label>
+            {f.items.map((it,i)=>(
+              <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 60px 100px 28px",gap:6,marginBottom:6}}>
+                <input className="inp" placeholder="Popis" value={it.desc} onChange={e=>upd(i,"desc",e.target.value)}/>
+                <input className="inp" type="number" placeholder="Ks" value={it.qty} onChange={e=>upd(i,"qty",e.target.value)} style={{textAlign:"center"}}/>
+                <input className="inp" type="number" placeholder="Cena" value={it.price} onChange={e=>upd(i,"price",e.target.value)}/>
+                <button className="btn bd" style={{padding:"0 8px"}} onClick={()=>s("items",f.items.filter((_,j)=>j!==i))}>✕</button>
+              </div>
+            ))}
+            <button className="btn bg" style={{fontSize:12,padding:"5px 12px",marginTop:4}} onClick={()=>s("items",[...f.items,{desc:"",qty:1,price:""}])}>+ Přidat položku</button>
+          </div>
+          <div style={{textAlign:"right",fontSize:15,fontWeight:800,color:"#f59e0b",fontFamily:"'JetBrains Mono',monospace"}}>Celkem: {fmtMoney(total,f.currency)}</div>
+          <div className="grid2"><div><label className="lbl">Splatnost</label><input className="inp" type="date" value={f.dueDate} onChange={e=>s("dueDate",e.target.value)}/></div><div><label className="lbl">Měna</label><select className="inp" value={f.currency} onChange={e=>s("currency",e.target.value)}><option>CZK</option><option>EUR</option><option>USD</option></select></div></div>
+          <div><label className="lbl">Poznámka</label><textarea className="inp" rows={2} value={f.note} onChange={e=>s("note",e.target.value)} style={{resize:"vertical"}}/></div>
+        </div>
+        <div style={{display:"flex",gap:9,justifyContent:"flex-end",marginTop:20}}>
+          <button className="btn bg" onClick={onClose}>Zrušit</button>
+          <button className="btn bp" onClick={()=>onSave({...f,amount:total})} disabled={!total}>Vytvořit fakturu</button>
+        </div>
+      </div>);
+    }
+
+    // ─── Mount ────────────────────────────────────────────────────────────────
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
