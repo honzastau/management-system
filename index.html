@@ -7,7 +7,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js"></script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <style>
@@ -57,7 +57,6 @@
 
     // ─── Utils ───────────────────────────────────────────────────────────────
     const { useState, useEffect, useRef, useCallback } = React;
-    const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } = Recharts;
 
     const fmtTimer  = s => `${String(Math.floor(s/3600)).padStart(2,"0")}:${String(Math.floor((s%3600)/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
     const fmtDur    = s => { const h=Math.floor(s/3600),m=Math.floor((s%3600)/60); return h===0?`${m} min`:m===0?`${h} hod`:`${h}h ${m}m`; };
@@ -668,17 +667,33 @@
 
     // ─── Reports ──────────────────────────────────────────────────────────────
     function Reports({orders,clients,entries,invoices,fmtMoney,fmtDur,totalSecs}){
-      const tt={background:"#0f1118",border:"1px solid #1a1f2e",borderRadius:8,fontSize:12};
-      const monthlyRevenue=(()=>{
-        const map={};const now=new Date();
-        for(let i=11;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;map[k]={label:d.toLocaleDateString("cs-CZ",{month:"short",year:"2-digit"}),revenue:0,invoiced:0};}
-        invoices.forEach(inv=>{const k=(inv.issued||"").slice(0,7);if(map[k]){map[k].invoiced+=inv.amount||0;if(inv.status==="paid")map[k].revenue+=inv.amount||0;}});
-        return Object.values(map);
-      })();
-      const revByClient=clients.map(c=>({name:c.company||c.name,value:orders.filter(o=>Number(o.clientId)===c.id).reduce((s,o)=>s+(o.price||0),0),color:c.color})).filter(x=>x.value>0).sort((a,b)=>b.value-a.value);
       const totalRev=invoices.filter(i=>i.status==="paid").reduce((s,i)=>s+(i.amount||0),0);
       const totalTime=entries.reduce((s,e)=>s+(e.duration||0),0);
       const avgRate=totalTime>0?Math.round(totalRev/(totalTime/3600)):0;
+
+      // Monthly data — last 6 months
+      const monthly=(()=>{
+        const arr=[];const now=new Date();
+        for(let i=5;i>=0;i--){
+          const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+          const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+          const label=d.toLocaleDateString("cs-CZ",{month:"short"});
+          const inv=invoices.filter(x=>(x.issued||"").startsWith(k));
+          const invoiced=inv.reduce((s,x)=>s+(x.amount||0),0);
+          const paid=inv.filter(x=>x.status==="paid").reduce((s,x)=>s+(x.amount||0),0);
+          arr.push({label,invoiced,paid});
+        }
+        return arr;
+      })();
+      const maxVal=Math.max(...monthly.map(m=>m.invoiced),1);
+
+      const revByClient=clients.map(c=>({
+        name:c.company||c.name,
+        value:orders.filter(o=>Number(o.clientId)===c.id).reduce((s,o)=>s+(o.price||0),0),
+        color:c.color||"#f59e0b"
+      })).filter(x=>x.value>0).sort((a,b)=>b.value-a.value);
+      const maxClient=Math.max(...revByClient.map(c=>c.value),1);
+
       return(
         <div>
           <div style={{marginBottom:28}}><h1 style={{fontSize:28,fontWeight:800,letterSpacing:"-.04em"}}>Reporty</h1></div>
@@ -689,30 +704,37 @@
           </div>
           <div className="grid2" style={{marginBottom:18}}>
             <div className="card">
-              <div className="sec-title">Tržby — 12 měsíců</div>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={monthlyRevenue} margin={{top:5,right:5,left:-20,bottom:0}}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1a1f2e"/>
-                  <XAxis dataKey="label" tick={{fill:"#475569",fontSize:11}} axisLine={false} tickLine={false}/>
-                  <YAxis tick={{fill:"#475569",fontSize:11}} axisLine={false} tickLine={false} tickFormatter={v=>v>=1000?`${v/1000}k`:v}/>
-                  <Tooltip contentStyle={tt} formatter={v=>[fmtMoney(v),""]}/>
-                  <Bar dataKey="invoiced" fill="#1a1f2e" radius={[3,3,0,0]} name="Fakturováno"/>
-                  <Bar dataKey="revenue" fill="#f59e0b" radius={[3,3,0,0]} name="Zaplaceno"/>
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="sec-title">Tržby — posledních 6 měsíců</div>
+              <div style={{display:"flex",alignItems:"flex-end",gap:8,height:160,paddingBottom:24,position:"relative"}}>
+                {monthly.map((m,i)=>(
+                  <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3,height:"100%",justifyContent:"flex-end"}}>
+                    <div style={{width:"100%",display:"flex",flexDirection:"column",gap:2,justifyContent:"flex-end",flex:1}}>
+                      <div style={{width:"100%",background:"#1a1f2e",borderRadius:"3px 3px 0 0",height:`${(m.invoiced/maxVal)*100}%`,minHeight:m.invoiced>0?4:0,position:"relative"}}>
+                        <div style={{position:"absolute",bottom:0,left:0,right:0,background:"#f59e0b",borderRadius:"3px 3px 0 0",height:`${m.invoiced>0?(m.paid/m.invoiced)*100:0}%`}}/>
+                      </div>
+                    </div>
+                    <div style={{fontSize:10,color:"#475569",position:"absolute",bottom:4}}>{m.label}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{display:"flex",gap:16,fontSize:11}}>
+                <span style={{display:"flex",alignItems:"center",gap:5,color:"#64748b"}}><span style={{width:10,height:10,background:"#1a1f2e",borderRadius:2,display:"inline-block"}}/> Fakturováno</span>
+                <span style={{display:"flex",alignItems:"center",gap:5,color:"#64748b"}}><span style={{width:10,height:10,background:"#f59e0b",borderRadius:2,display:"inline-block"}}/> Zaplaceno</span>
+              </div>
             </div>
             <div className="card">
               <div className="sec-title">Tržby dle klienta</div>
               {revByClient.length>0?(
-                <div style={{display:"flex",gap:20,alignItems:"center"}}>
-                  <PieChart width={150} height={150}><Pie data={revByClient} cx={70} cy={70} innerRadius={40} outerRadius={68} dataKey="value" strokeWidth={0}>{revByClient.map((e,i)=><Cell key={i} fill={e.color||COLORS[i%8]}/>)}</Pie><Tooltip contentStyle={tt} formatter={v=>[fmtMoney(v),""]}/></PieChart>
-                  <div style={{flex:1}}>{revByClient.map((c,i)=>(
-                    <div key={c.name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                      <div style={{width:8,height:8,borderRadius:"50%",background:c.color||COLORS[i%8],flexShrink:0}}/>
-                      <div style={{flex:1,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</div>
-                      <div style={{fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:"#f59e0b",fontWeight:700}}>{fmtMoney(c.value)}</div>
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {revByClient.slice(0,6).map((c,i)=>(
+                    <div key={c.name}>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}>
+                        <div style={{display:"flex",alignItems:"center",gap:7}}><div style={{width:8,height:8,borderRadius:"50%",background:c.color,flexShrink:0}}/><span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:140}}>{c.name}</span></div>
+                        <span style={{fontFamily:"'JetBrains Mono',monospace",color:"#f59e0b",fontWeight:700,flexShrink:0}}>{fmtMoney(c.value)}</span>
+                      </div>
+                      <div className="pgbar" style={{height:5}}><div className="pgfill" style={{width:`${(c.value/maxClient)*100}%`,background:c.color}}/></div>
                     </div>
-                  ))}</div>
+                  ))}
                 </div>
               ):<div style={{color:"#334155",fontSize:13,textAlign:"center",padding:"30px 0"}}>Žádná data</div>}
             </div>
@@ -723,9 +745,9 @@
               {STAGES.map((stage,i)=>{
                 const st=orders.filter(o=>o.stage===stage);
                 return(
-                  <div key={stage} style={{flex:1,minWidth:130,padding:"0 10px",borderRight:i<STAGES.length-1?"1px solid #1a1f2e":"none"}}>
+                  <div key={stage} style={{flex:1,minWidth:120,padding:"0 10px",borderRight:i<STAGES.length-1?"1px solid #1a1f2e":"none"}}>
                     <div style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:".07em",marginBottom:8}}>{stage}</div>
-                    <div style={{fontSize:20,fontWeight:800,fontFamily:"'JetBrains Mono',monospace"}}>{st.length}</div>
+                    <div style={{fontSize:22,fontWeight:800,fontFamily:"'JetBrains Mono',monospace"}}>{st.length}</div>
                     <div style={{fontSize:12,color:"#f59e0b",fontWeight:600,marginTop:3}}>{fmtMoney(st.reduce((s,o)=>s+(o.price||0),0))}</div>
                   </div>
                 );
