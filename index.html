@@ -266,23 +266,94 @@ function exportCSV(data,cols,filename){
 function printInv(id){
   var inv=DB.invoices.find(function(i){return i.id===id;});var cl=gc(inv?.clientId);var p=prof();
   var items=Array.isArray(inv.items)?inv.items:[];
-  var rows=items.map(function(it){return '<tr><td>'+e(it.desc)+'</td><td style="text-align:center">'+it.qty+'</td><td style="text-align:right">'+fmtM(it.price)+'</td><td style="text-align:right">'+fmtM(it.qty*it.price)+'</td></tr>';}).join('');
+  var subtotal=items.reduce(function(s,it){return s+(Number(it.qty)||0)*(Number(it.price)||0);},0);
   var vs=(inv.number||'').replace(/\D/g,'');
-  var spd=p.iban?'SPD*1.0*ACC:'+p.iban+'*AM:'+(inv.amount||0).toFixed(2)+'*CC:'+(inv.currency||'CZK')+'*MSG:Faktura '+inv.number+(vs?'*X-VS:'+vs:''):'';
-  var qr=spd?'https://api.qrserver.com/v1/create-qr-code/?size=140x140&data='+encodeURIComponent(spd):'';
+  var spd=p.iban?'SPD*1.0*ACC:'+p.iban+'*AM:'+(inv.amount||0).toFixed(2)+'*CC:'+(inv.currency||'CZK')+'*MSG:'+inv.number+(vs?'*X-VS:'+vs:''):'';
+  var qr=spd?'https://api.qrserver.com/v1/create-qr-code/?size=130x130&data='+encodeURIComponent(spd):'';
+  var itemRows=items.map(function(it,i){
+    var tot=(Number(it.qty)||0)*(Number(it.price)||0);
+    return '<tr style="background:'+(i%2?'#fafafa':'#fff')+'"><td style="padding:9px 12px;border-bottom:1px solid #f0f0f0">'+e(it.desc)+'</td><td style="padding:9px 12px;border-bottom:1px solid #f0f0f0;text-align:center;white-space:nowrap">'+it.qty+' ks</td><td style="padding:9px 12px;border-bottom:1px solid #f0f0f0;text-align:right;white-space:nowrap">'+fmtM(it.price,inv.currency)+'</td><td style="padding:9px 12px;border-bottom:1px solid #f0f0f0;text-align:right;white-space:nowrap;font-weight:700">'+fmtM(tot,inv.currency)+'</td></tr>';
+  }).join('');
   var w=window.open('','_blank');
-  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+e(inv.number)+'</title><style>body{font-family:Segoe UI,sans-serif;color:#111;padding:36px;font-size:14px}.h{display:flex;justify-content:space-between;margin-bottom:28px}.logo{font-size:22px;font-weight:800}.p2{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px}.pt h3{font-size:10px;text-transform:uppercase;color:#999;margin:0 0 6px}.pt p{margin:2px 0;font-size:13px}.nm{font-weight:700;font-size:15px}.dt{display:flex;gap:24px;margin-bottom:24px;padding:12px;background:#f9fafb;border-radius:8px}.di span{display:block;font-size:10px;text-transform:uppercase;color:#999;margin-bottom:2px}table{width:100%;border-collapse:collapse;margin-bottom:16px}thead th{background:#111;color:#fff;padding:9px 12px;text-align:left;font-size:11px}td{padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:13px}.tot{display:flex;justify-content:flex-end;gap:20px;align-items:flex-start}.tb{background:#111;color:#fff;padding:14px 20px;border-radius:8px;min-width:180px}.tb span{font-size:11px;opacity:.6;display:block;margin-bottom:3px}.tb strong{font-size:22px;font-weight:800}.bank{background:#f9fafb;border-radius:8px;padding:16px;margin-top:20px;font-size:13px;line-height:2}@media print{button{display:none!important}}</style></head><body>'+
-  '<div class="h"><div><div class="logo">'+e(p.companyName||'Vaše firma')+'</div><div style="font-size:12px;color:#666">Faktura č. '+e(inv.number)+'</div></div>'+
-  '<button onclick="window.print()" style="background:#111;color:#fff;border:none;padding:8px 18px;border-radius:7px;cursor:pointer;font-size:13px">🖨 Tisknout / PDF</button></div>'+
-  '<div class="p2"><div class="pt"><h3>Dodavatel</h3><p class="nm">'+e(p.companyName||'Vaše firma')+'</p><p>'+e(p.address||'')+' '+e(p.city||'')+'</p>'+(p.ico?'<p>IČO: '+e(p.ico)+'</p>':'')+(p.dic?'<p>DIČ: '+e(p.dic)+'</p>':'')+(p.email?'<p>'+e(p.email)+'</p>':'')+(p.phone?'<p>'+e(p.phone)+'</p>':'')+'</div>'+
-  '<div class="pt"><h3>Odběratel</h3><p class="nm">'+e(cl?.company||cl?.name||inv.recipient||'—')+'</p>'+(cl?'<p>'+e(cl.address||'')+' '+e(cl.city||'')+'</p>'+(cl.ico?'<p>IČO: '+e(cl.ico)+'</p>':'')+(cl.dic?'<p>DIČ: '+e(cl.dic)+'</p>':''):'')+'</div></div>'+
-  '<div class="dt"><div class="di"><span>Datum vystavení</span><strong>'+fmtD(inv.issued)+'</strong></div><div class="di"><span>Datum splatnosti</span><strong>'+fmtD(inv.dueDate)+'</strong></div></div>'+
-  '<table><thead><tr><th>Popis</th><th>Ks</th><th style="text-align:right">Cena/ks</th><th style="text-align:right">Celkem</th></tr></thead><tbody>'+rows+'</tbody></table>'+
-  '<div class="tot">'+(qr?'<div style="text-align:center"><img src="'+qr+'" width="120" height="120" style="border-radius:8px"/><div style="font-size:10px;color:#999;margin-top:4px">QR platba</div></div>':'')+
-  '<div class="tb"><span>K úhradě</span><strong>'+fmtM(inv.amount,inv.currency)+'</strong></div></div>'+
-  (p.bankAccount?'<div class="bank"><strong>Platební údaje</strong><br>Číslo účtu: <strong>'+e(p.bankAccount)+'</strong>'+(p.iban?'<br>IBAN: '+e(p.iban):'')+(vs?'<br>VS: '+vs:'')+'</div>':'')+
-  (inv.note?'<div style="margin-top:20px;padding:12px;background:#fffbeb;border-left:3px solid #f59e0b;font-size:12px">'+e(inv.note)+'</div>':'')+
-  '</body></html>');w.document.close();
+  var css='@import url(\'https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap\');'
+    +'*{box-sizing:border-box;margin:0;padding:0}'
+    +'body{font-family:Outfit,Segoe UI,sans-serif;color:#1a1a2e;background:#fff;font-size:13px;line-height:1.5}'
+    +'.page{max-width:800px;margin:0 auto;padding:0}'
+    +'.hdr{display:flex;justify-content:space-between;align-items:flex-start;padding:28px 32px 0}'
+    +'.hdr-left .company{font-size:20px;font-weight:800;color:#1a1a2e;letter-spacing:-.03em}'
+    +'.hdr-left .sub{font-size:11px;color:#888;margin-top:2px}'
+    +'.hdr-right{text-align:right}'
+    +'.inv-num{font-size:24px;font-weight:800;letter-spacing:-.04em;color:#1a1a2e}'
+    +'.inv-doc{font-size:11px;color:#aaa;margin-top:2px;text-transform:uppercase;letter-spacing:.06em}'
+    +'.amber-bar{background:#f59e0b;padding:16px 32px;display:flex;justify-content:space-between;align-items:center;margin:16px 0}'
+    +'.pay-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#7a5000;margin-bottom:4px}'
+    +'.pay-amt{font-size:28px;font-weight:800;color:#1a1a2e;letter-spacing:-.04em}'
+    +'.bank-grid{display:flex;flex-direction:column;gap:3px;text-align:right}'
+    +'.bank-row{font-size:12px;color:#7a5000;display:flex;gap:8px;justify-content:flex-end}'
+    +'.bank-row .bk{font-weight:600;color:#1a1a2e;min-width:100px;text-align:right}'
+    +'.dates-row{display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid #f0e0b0;border-radius:0}'
+    +'.date-box{padding:10px 16px;border-right:1px solid #f0e0b0}'
+    +'.date-box:last-child{border-right:none}'
+    +'.date-lbl{font-size:10px;text-transform:uppercase;font-weight:700;color:#aaa;letter-spacing:.06em;margin-bottom:3px}'
+    +'.date-val{font-size:14px;font-weight:700;color:#1a1a2e}'
+    +'.date-val.due{color:#f59e0b}'
+    +'.parties{display:grid;grid-template-columns:1fr auto;gap:24px;padding:20px 32px;border-bottom:1px solid #f0f0f0;align-items:start}'
+    +'.party-lbl{font-size:10px;text-transform:uppercase;font-weight:700;color:#aaa;letter-spacing:.06em;margin-bottom:6px}'
+    +'.party-name{font-size:15px;font-weight:700;color:#1a1a2e;margin-bottom:4px}'
+    +'.party-detail{font-size:12px;color:#555;line-height:1.8}'
+    +'.party-ico{font-size:12px;color:#555;margin-top:6px}'
+    +'.items-section{padding:20px 32px}'
+    +'.items-lbl{font-size:11px;text-transform:uppercase;font-weight:700;color:#aaa;letter-spacing:.06em;margin-bottom:12px}'
+    +'table{width:100%;border-collapse:collapse}'
+    +'thead tr{background:#1a1a2e}'
+    +'thead th{padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.04em}'
+    +'thead th:last-child,thead th:nth-child(3){text-align:right}'
+    +'thead th:nth-child(2){text-align:center}'
+    +'.summary-row{display:flex;justify-content:flex-end;padding:16px 32px 0}'
+    +'.summary-box{min-width:240px}'
+    +'.sum-line{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid #f0f0f0}'
+    +'.sum-line.total{border-bottom:none;border-top:2px solid #f59e0b;padding-top:10px;margin-top:4px}'
+    +'.sum-line.total .sl{font-size:15px;font-weight:800}'
+    +'.sum-line.total .sv{font-size:18px;font-weight:800;color:#f59e0b}'
+    +'.footer{padding:24px 32px;border-top:1px solid #f0f0f0;margin-top:20px;display:flex;justify-content:space-between;align-items:flex-start}'
+    +'.footer-left .thanks{font-size:14px;font-weight:700;margin-bottom:8px}'
+    +'.footer-detail{font-size:11px;color:#555;line-height:1.9}'
+    +'.print-btn{position:fixed;top:16px;right:16px;background:#f59e0b;color:#1a1a2e;border:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:Outfit,sans-serif}'
+    +'@media print{.print-btn{display:none!important}body{font-size:12px}.pay-amt{font-size:24px}}';
+
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+e(inv.number)+'</title><style>'+css+'</style></head><body>');
+  w.document.write('<button class="print-btn" onclick="window.print()">🖨 Tisknout / PDF</button>');
+  w.document.write('<div class="page">');
+  // Header
+  w.document.write('<div class="hdr"><div class="hdr-left"><div class="company">'+e(p.companyName||'Vaše firma')+'</div></div><div class="hdr-right"><div class="inv-num">'+e(inv.number)+'</div><div class="inv-doc">Daňový doklad</div></div></div>');
+  // Amber bar
+  w.document.write('<div class="amber-bar"><div><div class="pay-label">Prosím o zaplacení částky</div><div class="pay-amt">'+fmtM(inv.amount,inv.currency)+'</div></div>');
+  w.document.write('<div class="bank-grid">');
+  if(p.bankAccount)w.document.write('<div class="bank-row"><span>Bankovní účet</span><span class="bk">'+e(p.bankAccount)+'</span></div>');
+  if(vs)w.document.write('<div class="bank-row"><span>Variabilní symbol</span><span class="bk">'+vs+'</span></div>');
+  w.document.write('<div class="bank-row"><span>Způsob platby</span><span class="bk">Převodem</span></div>');
+  w.document.write('</div></div>');
+  // Dates row
+  w.document.write('<div style="padding:0 32px"><div class="dates-row"><div class="date-box"><div class="date-lbl">Datum vystavení</div><div class="date-val">'+fmtD(inv.issued)+'</div></div><div class="date-box"><div class="date-lbl">Datum splatnosti</div><div class="date-val due">'+fmtD(inv.dueDate)+'</div></div><div class="date-box"><div class="date-lbl">Datum zdaň. plnění</div><div class="date-val">'+fmtD(inv.issued)+'</div></div></div></div>');
+  // Parties
+  w.document.write('<div class="parties"><div><div class="party-lbl">Odběratel</div><div class="party-name">'+e(cl?.company||cl?.name||inv.recipient||'—')+'</div>');
+  if(cl){w.document.write('<div class="party-detail">'+e(cl.address||'')+(cl.city?' '+e(cl.city):'')+'</div>');if(cl.ico||cl.dic)w.document.write('<div class="party-ico">'+(cl.ico?'IČO: '+e(cl.ico):'')+(cl.ico&&cl.dic?' &nbsp;&nbsp; ':'')+(cl.dic?'DIČ: '+e(cl.dic):'')+'</div>');}
+  w.document.write('</div>');
+  w.document.write(qr?'<div style="text-align:center"><img src="'+qr+'" width="110" height="110" style="display:block"/><div style="font-size:9px;color:#aaa;margin-top:4px;text-transform:uppercase;letter-spacing:.04em">QR platba</div></div>':'<div></div>');
+  w.document.write('</div>');
+  // Items
+  w.document.write('<div class="items-section"><div class="items-lbl">Fakturujeme Vám následující položky</div>');
+  w.document.write('<table><thead><tr><th>Popis</th><th>Množství</th><th>Cena/ks</th><th>Celkem</th></tr></thead><tbody>'+itemRows+'</tbody></table></div>');
+  // Summary
+  w.document.write('<div class="summary-row"><div class="summary-box"><div class="sum-line"><span class="sl">Celkem bez DPH</span><span class="sv mono">'+fmtM(subtotal,inv.currency)+'</span></div>');
+  w.document.write('<div class="sum-line total"><span class="sl">K úhradě</span><span class="sv mono">'+fmtM(inv.amount,inv.currency)+'</span></div></div></div>');
+  // Note
+  if(inv.note)w.document.write('<div style="margin:12px 32px 0;padding:12px 16px;background:#fffbeb;border-left:3px solid #f59e0b;font-size:12px;color:#7a5000">'+e(inv.note)+'</div>');
+  // Footer
+  w.document.write('<div class="footer"><div class="footer-left"><div class="thanks">Díky za Vaši důvěru!</div><div class="footer-detail">'+e(p.companyName||'')+'<br>'+e(p.address||'')+(p.city?' '+e(p.city):'')+(p.zip?', '+e(p.zip):'')+'<br>'+(p.ico?'IČO: '+e(p.ico):'')+(p.dic?' &nbsp; DIČ: '+e(p.dic):'')+(p.email?'<br>'+e(p.email):'')+(p.phone?'<br>'+e(p.phone):'')+'</div></div>');
+  if(p.bankAccount)w.document.write('<div style="font-size:12px;text-align:right;color:#555;line-height:1.9"><div style="font-weight:700;margin-bottom:4px">Platební údaje</div>'+e(p.bankAccount)+(p.iban?'<br>IBAN: '+e(p.iban):'')+'</div>');
+  w.document.write('</div></div></body></html>');
+  w.document.close();
 }
 
 // ═══ VIEWS ═══════════════════════════════════════════════════
@@ -334,6 +405,73 @@ function vOrders(){
   html('<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px"><div><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Aktivní zakázky</h1><p style="color:#475569;font-size:14px;margin-top:3px">'+act.length+' zakázek</p></div><div style="display:flex;gap:10px;align-items:center">'+searchBox('Hledat zakázku...')+'<button class="btn bp" onclick="openOM()">+ Nová zakázka</button></div></div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:15px">'+(cards||'<div style="grid-column:1/-1;text-align:center;padding:60px 0;color:#475569"><div style="font-size:36px;margin-bottom:10px">◈</div><div style="font-size:16px;font-weight:700">Žádné zakázky</div></div>')+'</div>');
 }
 
+function getMilestones(o){try{return JSON.parse(o.milestones||'[]');}catch{return[];}}
+
+function renderTimeline(o,oInvs,paidInv,sentInv){
+  var si=STAGES.indexOf(o.stage);
+  var custom=getMilestones(o);
+  var fixed=[
+    {label:'Přijetí',date:o.created,done:true},
+    {label:'Deadline',date:o.deadline,done:si>=4||new Date()>=new Date(o.deadline),overdue:si<4&&new Date()>new Date(o.deadline)},
+    {label:'Předání',date:'',done:si>=4},
+    {label:'Fakturace',date:sentInv?sentInv.issued:'',done:!!sentInv},
+    {label:'Zaplaceno',date:paidInv?(paidInv.paidDate||paidInv.issued):'',done:!!paidInv}
+  ];
+  var steps=fixed.map(function(m,i){
+    var cls=m.done?'done':(i===si+1?'active':'future');
+    if(m.overdue)cls='active';
+    return '<div class="tl-step">'
+      +'<div class="tl-dot '+cls+'"></div>'
+      +(i<fixed.length-1?'<div class="tl-line '+(m.done?'done':'')+'"></div>':'')
+      +'<div class="tl-label '+cls+'">'+m.label+'</div>'
+      +(m.date?'<div class="tl-date">'+fmtD(m.date)+'</div>':'')
+      +'</div>';
+  }).join('');
+  var customH=custom.map(function(m,i){
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1a1f2e22">'
+      +'<button onclick="toggleMilestone('+o.id+','+i+')" style="width:20px;height:20px;border-radius:50%;border:2px solid '+(m.done?'#10b981':'#475569')+';background:'+(m.done?'#10b981':'transparent')+';cursor:pointer;flex-shrink:0;transition:all .2s"></button>'
+      +'<span style="flex:1;font-size:13px;'+(m.done?'text-decoration:line-through;color:#475569':'color:#e2e8f0')+'">'+e(m.label)+'</span>'
+      +(m.date?'<span class="mono" style="font-size:11px;color:#64748b;flex-shrink:0">'+fmtD(m.date)+'</span>':'')
+      +'<button class="btn bd btn-sm" style="padding:2px 7px;font-size:11px;flex-shrink:0" onclick="delMilestone('+o.id+','+i+')">✕</button>'
+      +'</div>';
+  }).join('');
+  return '<div class="card" style="margin-bottom:18px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+    +'<div class="st" style="margin:0">Průběh zakázky</div>'
+    +'<button class="btn bg btn-sm" onclick="showAddMilestone('+o.id+')">+ Milník</button>'
+    +'</div>'
+    +'<div class="tl">'+steps+'</div>'
+    +(custom.length?'<div style="border-top:1px solid #1a1f2e;margin-top:12px;padding-top:4px">'+customH+'</div>':'')
+    +'<div id="ml-form-'+o.id+'" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #1a1f2e">'
+    +'<div style="display:grid;grid-template-columns:1fr 160px auto;gap:8px;align-items:center">'
+    +'<input class="inp" id="ml-label-'+o.id+'" placeholder="Název milníku..." style="padding:7px 12px;font-size:12px">'
+    +'<input class="inp" type="date" id="ml-date-'+o.id+'" style="padding:7px 12px;font-size:12px">'
+    +'<button class="btn bp btn-sm" onclick="addMilestone('+o.id+')">Přidat</button>'
+    +'</div></div></div>';
+}
+
+function showAddMilestone(oid){
+  var f=$('ml-form-'+oid);
+  if(f){f.style.display=f.style.display==='none'?'block':'none';var inp=$('ml-label-'+oid);if(inp&&f.style.display!=='none')inp.focus();}
+}
+async function addMilestone(oid){
+  var label=$('ml-label-'+oid)?.value.trim();var date=$('ml-date-'+oid)?.value;
+  if(!label)return toast('Zadej název milníku','error');
+  var o=go(oid);var ms=getMilestones(o);ms.push({label:label,date:date,done:false});
+  await saveMilestones(oid,ms);
+}
+async function toggleMilestone(oid,idx){
+  var o=go(oid);var ms=getMilestones(o);ms[idx].done=!ms[idx].done;await saveMilestones(oid,ms);
+}
+async function delMilestone(oid,idx){
+  var o=go(oid);var ms=getMilestones(o);ms.splice(idx,1);await saveMilestones(oid,ms);
+}
+async function saveMilestones(oid,ms){
+  var o=go(oid);
+  await mut('update','orders',{id:oid,data:Object.assign({},o,{milestones:JSON.stringify(ms)})});
+  vOrderDetail(oid);
+}
+
 function vOrderDetail(id){
   var o=go(id);if(!o)return;curView='orderDetail';
   var cl=gc(o.clientId);var isR=TS.running&&TS.orderId===o.id;
@@ -344,23 +482,7 @@ function vOrderDetail(id){
   var hasPaidInv=oInvs.some(function(i){return i.status==='paid';});
   var paidInv=oInvs.find(function(i){return i.status==='paid';});
   var sentInv=oInvs.find(function(i){return i.status==='sent'||i.status==='paid';});
-  // Timeline milestones
-  var si=STAGES.indexOf(o.stage);
-  var milestones=[
-    {label:'Přijetí',date:o.created,idx:0},
-    {label:'Deadline',date:o.deadline,idx:4},
-    {label:'Předání',date:si>=4?'✓':'',idx:4},
-    {label:'Fakturace',date:sentInv?sentInv.issued:(si>=5?'✓':''),idx:5},
-    {label:'Zaplaceno',date:paidInv?(paidInv.paidDate||'✓'):(si>=6?'✓':''),idx:6}
-  ];
-  var tlH='<div class="card" style="margin-bottom:18px"><div class="st">Průběh zakázky</div><div class="tl">'+milestones.map(function(m,i){
-    var done=(i<=1)?true:(i===2?si>=4:i===3?si>=5:si>=6);
-    var isAct=!done&&((i===2&&si>=3&&si<4)||(i===3&&si>=4&&si<5)||(i===4&&si>=5&&si<6));
-    if(i===0)done=true;if(i===1)done=new Date()>=new Date(o.deadline);
-    var cls=done?'done':isAct?'active':'future';
-    var lineC=done?'done':'';
-    return '<div class="tl-step"><div class="tl-dot '+cls+'"></div>'+(i<milestones.length-1?'<div class="tl-line '+lineC+'"></div>':'')+'<div class="tl-label '+cls+'">'+m.label+'</div>'+(m.date&&m.date!=='✓'?'<div class="tl-date">'+fmtD(m.date)+'</div>':'')+'</div>';
-  }).join('')+'</div></div>';
+  var tlH=renderTimeline(o,oInvs,paidInv,sentInv);
   var orderNotes=DB.notes.filter(function(n){return n.orderId===o.id;}).sort(function(a,b){return b.id-a.id;});
   var notesH=orderNotes.map(function(n){return '<div style="background:#13151f;border-radius:10px;padding:12px;margin-bottom:8px;position:relative"><div style="font-size:12px;color:#475569;margin-bottom:4px">'+fmtD(n.created)+'</div><div style="font-size:13px;color:#e2e8f0;line-height:1.6;white-space:pre-wrap">'+e(n.text)+'</div><button class="btn bd btn-sm" style="position:absolute;top:8px;right:8px;padding:2px 7px;font-size:11px" onclick="delNote('+n.id+','+o.id+')">✕</button></div>';}).join('');
   var ents=DB.entries.filter(function(x){return x.orderId===o.id;}).sort(function(a,b){return b.id-a.id;});
@@ -465,7 +587,7 @@ async function saveO(id){var name=$('fn').value.trim();if(!name)return toast('Za
 
 function openCM(id){
   var c=id?gc(id):null;FC=c?.color||'#3b82f6';
-  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(c?'Upravit klienta':'Nový klient')+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">Jméno *</label><input class="inp" id="fn" value="'+e(c?.name||'')+'"></div><div class="fr" style="margin:0"><label class="lbl">Firma</label><input class="inp" id="fco" value="'+e(c?.company||'')+'"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">Email</label><input class="inp" type="email" id="fem" value="'+e(c?.email||'')+'"></div><div class="fr" style="margin:0"><label class="lbl">Telefon</label><input class="inp" type="tel" id="fph" value="'+e(c?.phone||'')+'"></div></div><div class="fr"><label class="lbl">Adresa</label><input class="inp" id="fad" value="'+e(c?.address||'')+'"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">Město</label><input class="inp" id="fci" value="'+e(c?.city||'')+'"></div><div class="fr" style="margin:0"><label class="lbl">PSČ</label><input class="inp" id="fzi" value="'+e(c?.zip||'')+'"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">IČO</label><input class="inp" id="fico" value="'+e(c?.ico||'')+'"></div><div class="fr" style="margin:0"><label class="lbl">DIČ</label><input class="inp" id="fdic" value="'+e(c?.dic||'')+'"></div></div><div class="fr"><label class="lbl">Poznámky</label><textarea class="inp" id="fno" rows="2" style="resize:vertical">'+e(c?.notes||'')+'</textarea></div><div class="fr"><label class="lbl">Barva</label>'+cpick(FC,'FC')+'</div><div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="saveC('+(c?.id||0)+')">Uložit</button></div>');
+  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(c?'Upravit klienta':'Nový klient')+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">Jméno *</label><input class="inp" id="fn" value="'+e(c?.name||'')+'"></div><div class="fr" style="margin:0"><label class="lbl">Firma</label><input class="inp" id="fco" value="'+e(c?.company||'')+'"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">Email</label><input class="inp" type="email" id="fem" value="'+e(c?.email||'')+'"></div><div class="fr" style="margin:0"><label class="lbl">Telefon</label><input class="inp" type="text" id="fph" value="'+e(c?.phone||'')+'"></div></div><div class="fr"><label class="lbl">Adresa</label><input class="inp" id="fad" value="'+e(c?.address||'')+'"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">Město</label><input class="inp" id="fci" value="'+e(c?.city||'')+'"></div><div class="fr" style="margin:0"><label class="lbl">PSČ</label><input class="inp" id="fzi" value="'+e(c?.zip||'')+'"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">IČO</label><input class="inp" id="fico" value="'+e(c?.ico||'')+'"></div><div class="fr" style="margin:0"><label class="lbl">DIČ</label><input class="inp" id="fdic" value="'+e(c?.dic||'')+'"></div></div><div class="fr"><label class="lbl">Poznámky</label><textarea class="inp" id="fno" rows="2" style="resize:vertical">'+e(c?.notes||'')+'</textarea></div><div class="fr"><label class="lbl">Barva</label>'+cpick(FC,'FC')+'</div><div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="saveC('+(c?.id||0)+')">Uložit</button></div>');
 }
 async function saveC(id){var name=$('fn').value.trim();if(!name)return toast('Zadej jméno','error');var data={name:name,company:$('fco').value,email:$('fem').value,phone:$('fph').value,address:$('fad').value,city:$('fci').value,zip:$('fzi').value,ico:$('fico').value,dic:$('fdic').value,notes:$('fno').value,color:FC};closeModal();if(id)await mut('update','clients',{id:id,data:Object.assign({},gc(id),data)});else await mut('create','clients',{data:data});toast(id?'Klient aktualizován':'Klient vytvořen','success');}
 
