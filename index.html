@@ -5,10 +5,10 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Management System</title>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Outfit','Segoe UI',sans-serif;background:#09090f;color:#e2e8f0;min-height:100vh;display:flex}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;background:#09090f;color:#e2e8f0;min-height:100vh;display:flex}
 ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#1e2433;border-radius:2px}
 input,textarea,select{outline:none;font-family:inherit}
 button{cursor:pointer;font-family:inherit}
@@ -46,7 +46,7 @@ select.inp option{background:#13151f}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}
-.mono{font-family:'JetBrains Mono',monospace}
+.mono{font-family:'SFMono-Regular','Menlo','Monaco','Consolas',monospace}
 .tbl{width:100%;border-collapse:collapse}
 .tbl th{text-align:left;padding:10px 14px;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;border-bottom:1px solid #1a1f2e;cursor:pointer;user-select:none;white-space:nowrap}
 .tbl th:hover{color:#94a3b8}
@@ -112,8 +112,9 @@ select.inp option{background:#13151f}
 .tl-line.done{background:#10b981}
 .tl-label{font-size:10px;font-weight:700;color:#475569;margin-top:8px;text-align:center;text-transform:uppercase;letter-spacing:.04em}
 .tl-label.done{color:#10b981}.tl-label.active{color:#f59e0b}
-.tl-date{font-size:10px;color:#64748b;margin-top:2px;font-family:'JetBrains Mono',monospace}
+.tl-date{font-size:10px;color:#64748b;margin-top:2px;font-family:'SFMono-Regular','Menlo','Monaco','Consolas',monospace}
 </style>
+
 </head>
 <body>
 <div id="toasts"></div>
@@ -160,6 +161,7 @@ select.inp option{background:#13151f}
 <div id="modal-ov" onclick="if(event.target===this)closeModal()"><div class="mbox" id="mbox"></div></div>
 <div id="sync">⟳ Ukládám…</div>
 <script>
+window.onerror=function(msg,src,line,col,err){document.body.innerHTML='<div style="background:#09090f;color:#f87171;padding:40px;font-family:sans-serif;min-height:100vh"><h2>Chyba aplikace</h2><p>'+msg+'</p><small>Řádek: '+line+'</small></div>';return false;};
 const DB={clients:[],orders:[],entries:[],invoices:[],expenses:[],notes:[]};
 let curView='dashboard';let TS={running:false,orderId:null,elapsed:0,iv:null};
 let FC='#f59e0b';let INV_ITEMS=[];let SEARCH='';let confirmCb=null;
@@ -189,7 +191,7 @@ function getUrl(){return localStorage.getItem(‘mgmt_url’)||‘https://script
 function autoColor(){var cid=Number($(‘fcl’)&&$(‘fcl’).value||0);var c=gc(cid);if(c&&c.color){FC=c.color;document.querySelectorAll(’.cs’).forEach(function(x){x.classList.toggle(‘sel’,x.style.background===c.color||x.style.backgroundColor===c.color);});}}
 function dueIn(days){var d=new Date();d.setDate(d.getDate()+days);return d.toISOString().slice(0,10);}
 function saveUrl(){var u=$(‘setup-url’).value.trim();if(!u)return;localStorage.setItem(‘mgmt_url’,u);boot();}
-window.onload=function(){if(!getUrl()){$(‘setup’).style.display=‘flex’;}else boot();};
+document.addEventListener(‘DOMContentLoaded’,function(){try{if(!getUrl()){$(‘setup’).style.display=‘flex’;}else boot();}catch(err){document.body.innerHTML=’<div style="color:#f87171;padding:40px;font-family:sans-serif">JS Error: ‘+err.message+’<br><small>’+err.stack+’</small></div>’;}});
 function boot(){$(‘setup’).style.display=‘none’;$(‘app’).style.display=‘flex’;loadAll();}
 
 async function apiFetch(p){var r=await fetch(getUrl()+’?’+new URLSearchParams(p));var j=await r.json();if(j.error)throw new Error(j.error);return j;}
@@ -280,7 +282,7 @@ return ‘<tr style="background:'+(i%2?'#fafafa':'#fff')+'"><td style="padding:9
 var w=window.open(’’,’_blank’);
 var css=’@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');’
 +’*{box-sizing:border-box;margin:0;padding:0}’
-+‘body{font-family:Outfit,Segoe UI,sans-serif;color:#1a1a2e;background:#fff;font-size:13px;line-height:1.5}’
++‘body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1a1a2e;background:#fff;font-size:13px;line-height:1.5}’
 +’.page{max-width:800px;margin:0 auto;padding:0}’
 +’.hdr{display:flex;justify-content:space-between;align-items:flex-start;padding:28px 32px 0}’
 +’.hdr-left .company{font-size:20px;font-weight:800;color:#1a1a2e;letter-spacing:-.03em}’
@@ -321,7 +323,7 @@ var css=’@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400
 +’.footer{padding:24px 32px;border-top:1px solid #f0f0f0;margin-top:20px;display:flex;justify-content:space-between;align-items:flex-start}’
 +’.footer-left .thanks{font-size:14px;font-weight:700;margin-bottom:8px}’
 +’.footer-detail{font-size:11px;color:#555;line-height:1.9}’
-+’.print-btn{position:fixed;top:16px;right:16px;background:#f59e0b;color:#1a1a2e;border:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:Outfit,sans-serif}’
++’.print-btn{position:fixed;top:16px;right:16px;background:#f59e0b;color:#1a1a2e;border:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,sans-serif}’
 +’@media print{.print-btn{display:none!important}body{font-size:12px}.pay-amt{font-size:24px}}’;
 
 w.document.write(’<!DOCTYPE html><html><head><meta charset="utf-8"><title>’+e(inv.number)+’</title><style>’+css+’</style></head><body>’);
