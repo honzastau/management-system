@@ -941,7 +941,12 @@ function openIM(editId){
   var invOrderIds=inv?(Array.isArray(inv.orderIds)&&inv.orderIds.length?inv.orderIds.map(Number):(inv.orderId?[Number(inv.orderId)]:[])):[];
   var needsRepair=editId&&inv&&(!Array.isArray(inv.orderIds)||!inv.orderIds.length);
   var allOrders=DB.orders.filter(function(o){return o.status==='active';});
-  INV_ITEMS=inv&&Array.isArray(inv.items)?inv.items.map(function(it){return{desc:it.desc||'',note:it.note||'',qty:it.qty||1,price:it.price||0};}):[];
+  var rawItems=[];
+  if(inv){
+    if(Array.isArray(inv.items))rawItems=inv.items;
+    else if(typeof inv.items==='string'&&inv.items){try{rawItems=JSON.parse(inv.items);}catch(e){rawItems=[];}}
+  }
+  INV_ITEMS=rawItems.map(function(it){return{desc:it.desc||'',note:it.note||'',qty:Number(it.qty)||1,price:Number(it.price)||0};});
   var autoNum=inv?inv.number:nin();
   var orderChecks=allOrders.map(function(o){var sel=invOrderIds.indexOf(o.id)>=0;return '<label style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;cursor:pointer;'+(sel?'background:#151720;':'')+'hover:background:#13151f"><input type="checkbox" class="inv-order-cb" value="'+o.id+'"'+(sel?' checked':'')+' onchange="updateInvInfo()" style="width:15px;height:15px;accent-color:#f59e0b"><span style="font-size:13px;font-weight:600">'+e(o.name)+'</span><span style="font-size:12px;color:#64748b;margin-left:4px">'+e((gc(o.clientId)&&gc(o.clientId).company||gc(o.clientId)&&gc(o.clientId).name||''))+'</span><span class="mono" style="font-size:11px;color:#f59e0b;margin-left:auto">'+fmtM(o.price)+'</span></label>';}).join('');
   openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(editId?'Upravit fakturu':'Nová faktura')+'</div>'+(needsRepair?'<div style="background:#1a0a00;border:1px solid #f59e0b44;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#f59e0b">⚠ Tato faktura byla vytvořena bez uložení propojených zakázek. Zaškrtni všechny patřičné zakázky a ulož — propojení se tím opraví.</div>':'')
@@ -958,11 +963,12 @@ function openIM(editId){
     +'<div id="itot" class="mono" style="text-align:right;font-size:15px;font-weight:800;color:#f59e0b;margin-bottom:13px">Celkem: 0 Kč</div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px">'
     +'<div class="fr" style="margin:0"><label class="lbl">Splatnost</label><input class="inp" type="date" id="fdu" value="'+(inv?inv.dueDate:dueIn(14))+'"></div>'
-    +'<div class="fr" style="margin:0"><label class="lbl">Měna</label><select class="inp" id="fcu"><option>CZK</option><option>EUR</option><option>USD</option></select></div>'
+    +'<div class="fr" style="margin:0"><label class="lbl">Měna</label><select class="inp" id="fcu"><option'+((!inv||inv.currency==='CZK')?' selected':'')+'>CZK</option><option'+(inv&&inv.currency==='EUR'?' selected':'')+'>EUR</option><option'+(inv&&inv.currency==='USD'?' selected':'')+'>USD</option></select></div>'
     +'</div>'
     
     +'<div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="saveI('+(editId||0)+')">Uložit</button></div>'); 
   if(inv&&$('frec'))$('frec').value=inv.recipient||'';
+  if(inv&&$('fcu'))$('fcu').value=inv.currency||'CZK';
   renderII();calcItot();
   updateInvInfo();
   if(!editId&&INV_ITEMS.length===0)addII();
