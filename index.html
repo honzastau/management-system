@@ -628,9 +628,13 @@ async function delMilestone(oid,idx){
   var o=go(oid);var ms=getMilestones(o);ms.splice(idx,1);await saveMilestones(oid,ms);
 }
 async function saveMilestones(oid,ms){
-  var o=go(oid);
-  await mut('update','orders',{id:oid,data:Object.assign({},o,{milestones:JSON.stringify(ms)})});
-  vOrderDetail(oid);
+  var o=go(oid);if(!o)return toast('Zakázka nenalezena','error');
+  // Vytvořit čistý datový objekt bez problematických referencí
+  var data=Object.assign({},o,{milestones:JSON.stringify(ms)});
+  // Zajistit že delivered zůstane
+  if(o.delivered)data.delivered=o.delivered;
+  var result=await mut('update','orders',{id:oid,data:data});
+  if(result)vOrderDetail(oid);
 }
 
 function vOrderDetail(id){
