@@ -973,13 +973,20 @@ function updateInvInfo(){
   var totalTime=oids.reduce(function(s,id){return s+ts(id);},0);
   var totalVal=orders.reduce(function(s,o){return s+(o.price||0);},0);
   var totalExp=oids.reduce(function(s,id){return s+expSum(id);},0);
-  // Auto-fill recipient from first order's client
+  // Auto-fill příjemce z prvního klienta (jen pokud je prázdný)
   var frec=$('frec');
   if(frec&&!frec.value){var cl=gc(orders[0].clientId);if(cl)frec.value=cl.company||cl.name;}
   iinfo.innerHTML='<strong style="color:#e2e8f0">'+orders.map(function(o){return e(o.name);}).join(', ')+'</strong><br>'
     +'Odpracováno: <span style="color:#8b5cf6">'+fmtDur(totalTime)+'</span>'
     +' · Hodnota: <span style="color:#f59e0b">'+fmtM(totalVal)+'</span>'
     +' · Náklady: <span style="color:#ef4444">'+fmtM(totalExp)+'</span>';
+  // Auto-fill položek pro NOVOU fakturu (INV_ITEMS prázdné = ještě nic nepřidáno)
+  if(INV_ITEMS.length===0&&orders.length>0){
+    INV_ITEMS=orders.map(function(ord){
+      return {desc:ord.name||'',note:'',qty:1,price:ord.price||0};
+    });
+    renderII();calcItot();
+  }
 }
 function addII(){INV_ITEMS.push({desc:'',note:'',qty:1,price:''});renderII();}
 function remII(i){INV_ITEMS.splice(i,1);renderII();}
@@ -1016,7 +1023,7 @@ function updIIDesc(i,v){
   if(match&&!INV_ITEMS[i].price){INV_ITEMS[i].price=match.price;renderII();}else{calcItot();}
 }
 function calcItot(){var tot=INV_ITEMS.reduce(function(s,it){return s+(Number(it.qty)||0)*(Number(it.price)||0);},0);var el=$('itot');if(el)el.textContent='Celkem: '+fmtM(tot);}
-async function saveI(editId){var items=INV_ITEMS.map(function(it){return{desc:it.desc,note:it.note||'',qty:Number(it.qty)||1,price:Number(it.price)||0};});var amount=items.reduce(function(s,it){return s+it.qty*it.price;},0);if(!amount)return toast('Přidej alespoň jednu položku s cenou','error');var oids=getSelectedOrderIds();var oid=oids[0]||0;var o=go(oid);var primaryClientId=o?o.clientId:'';var baseData={orderId:oid,orderIds:oids,clientId:primaryClientId,recipient:$('frec').value,items:items,amount:amount,currency:$('fcu').value,dueDate:$('fdu').value,note:'',issued:$('fiss').value||today(),duzp:$('fduzp').value||today(),number:$('finv').value||nin()};INV_ITEMS=[];closeModal();if(editId){var ex=DB.invoices.find(function(x){return x.id===editId;});await mut('update','invoices',{id:editId,data:Object.assign({},ex,baseData)});toast('Faktura uložena','success');}else{await mut('create','invoices',{data:Object.assign({},baseData,{status:'draft'})});toast('Faktura vytvořena','success');}}
+async function saveI(editId){var items=INV_ITEMS.map(function(it){return{desc:it.desc,note:it.note||'',qty:Number(it.qty)||1,price:Number(it.price)||0};});var amount=items.reduce(function(s,it){return s+it.qty*it.price;},0);if(!amount)return toast('Přidej alespoň jednu položku s cenou','error');var oids=getSelectedOrderIds();var oid=oids[0]||0;var o=go(oid);var primaryClientId=o?o.clientId:'';var baseData={orderId:oid,orderIds:oids,clientId:primaryClientId,recipient:$('frec').value,items:items,amount:amount,currency:$('fcu').value,dueDate:$('fdu').value,note:'',issued:$('fiss').value||today(),duzp:$('fduzp').value||today(),number:$('finv').value||nin()};INV_ITEMS=[];closeModal();if(editId){var ex=DB.invoices.find(function(x){return x.id===editId;});if(ex){baseData.note=ex.note||'';}await mut('update','invoices',{id:editId,data:Object.assign({},ex,baseData)});toast('Faktura uložena','success');}else{await mut('create','invoices',{data:Object.assign({},baseData,{status:'draft'})});toast('Faktura vytvořena','success');}}
 
 function expClients(){exportCSV(DB.clients,[{label:'Jméno',key:'name'},{label:'Firma',key:'company'},{label:'Email',key:'email'},{label:'Telefon',key:'phone'},{label:'IČO',key:'ico'},{label:'DIČ',key:'dic'},{label:'Město',key:'city'}],'klienti.csv');}
 function expArchive(){exportCSV(DB.orders.filter(function(o){return o.status==='archived';}),[{label:'Název',key:'name'},{label:'Stav',key:'stage'},{label:'Cena',key:'price'},{label:'Deadline',key:'deadline'}],'archiv.csv');}
