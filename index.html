@@ -360,10 +360,6 @@ function printInv(id){
   w.document.close();
 }
 
-</script>
-<script>document.getElementById("boot-msg").textContent="JS blok 1 OK - čekám na blok 2...";</script>
-<script>
-
 // ═══ VIEWS ═══════════════════════════════════════════════════
 function vDash(){
   var act=DB.orders.filter(function(o){return o.status==='active';});
@@ -474,7 +470,7 @@ function renderTimeline(o,oInvs,paidInv,sentInv){
   return '<div class="card" style="margin-bottom:18px">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
     +'<div class="st" style="margin:0">Pr&#367;b&#283;h zak&#225;zky</div>'
-    +'<button class="btn bg btn-sm" onclick="showAddMilestone('+o.id+')">+ Voln&#253; Voln&#253; milník</button>'
+    +'<button class="btn bg btn-sm" onclick="showAddMilestone('+o.id+')">+ Voln&#253; milník</button>'
     +'</div>'
     +'<div class="tl">'+steps+'</div>'
     +(custom.length?'<div style="border-top:1px solid #1a1f2e;margin-top:12px;padding-top:4px">'+customH+'</div>':'')
@@ -511,17 +507,13 @@ async function saveMilestones(oid,ms){
   vOrderDetail(oid);
 }
 
-</script>
-<script>document.getElementById("boot-msg").textContent="Blok 2a OK...";</script>
-<script>
-
 function vOrderDetail(id){
   var o=go(id);if(!o)return;curView='orderDetail';
   var cl=gc(o.clientId);var isR=TS.running&&TS.orderId===o.id;
   var dl=Math.ceil((new Date(o.deadline)-new Date())/86400000);
   var tSec=ts(o.id);var ex=expSum(o.id);var profit=o.price-ex;
   var stColor=o.status==='completed'?'#10b981':o.status==='archived'?'#475569':'#f59e0b';
-  var oInvs=DB.invoices.filter(function(i){return i.orderId===o.id;});
+  var oInvs=DB.invoices.filter(function(i){return i.orderId===o.id||(Array.isArray(i.orderIds)&&i.orderIds.indexOf(o.id)>=0);});
   var hasPaidInv=oInvs.some(function(i){return i.status==='paid';});
   var paidInv=oInvs.find(function(i){return i.status==='paid';});
   var sentInv=oInvs.find(function(i){return i.status==='sent'||i.status==='paid';});
@@ -604,9 +596,7 @@ function vSettings(){
   var p=prof();
   html('<div style="margin-bottom:28px"><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Nastavení firmy</h1><p style="color:#475569;font-size:14px;margin-top:4px">Údaje se zobrazí na fakturách</p></div><div class="card" style="max-width:640px"><div class="fr"><label class="lbl">Název firmy / Jméno</label><input class="inp" id="pName" value="'+e(p.companyName||'')+'"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">IČO</label><input class="inp" id="pIco" value="'+e(p.ico||'')+'"></div><div class="fr" style="margin:0"><label class="lbl">DIČ</label><input class="inp" id="pDic" value="'+e(p.dic||'')+'"></div></div><div class="fr"><label class="lbl">Adresa</label><input class="inp" id="pAddr" value="'+e(p.address||'')+'"></div><div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">Město</label><input class="inp" id="pCity" value="'+e(p.city||'')+'"></div><div class="fr" style="margin:0"><label class="lbl">PSČ</label><input class="inp" id="pZip" value="'+e(p.zip||'')+'"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">Email</label><input class="inp" id="pEmail" value="'+e(p.email||'')+'"></div><div class="fr" style="margin:0"><label class="lbl">Telefon</label><input class="inp" id="pPhone" value="'+e(p.phone||'')+'"></div></div><div class="fr"><label class="lbl">Číslo účtu</label><input class="inp" id="pBank" value="'+e(p.bankAccount||'')+'" placeholder="123456789/0100"></div><div class="fr"><label class="lbl">IBAN (pro QR platbu)</label><input class="inp" id="pIban" value="'+e(p.iban||'')+'" placeholder="CZ65 0800 0000 0012 3456 7899"></div><div class="mfooter" style="margin-top:24px"><button class="btn bp" onclick="saveProfile()">💾 Uložit nastavení</button></div></div>');
 }
-</script>
-<script>document.getElementById("boot-msg").textContent="Blok 2b-1 OK...";</script>
-<script>
+
 function saveProfile(){var data={companyName:$('pName').value,ico:$('pIco').value,dic:$('pDic').value,address:$('pAddr').value,city:$('pCity').value,zip:$('pZip').value,email:$('pEmail').value,phone:$('pPhone').value,bankAccount:$('pBank').value,iban:$('pIban').value.replace(/\s/g,'')};localStorage.setItem('mgmt_profile',JSON.stringify(data));toast('Nastavení uloženo','success');}
 
 // ═══ ACTIONS ═════════════════════════════════════════════════
@@ -670,7 +660,7 @@ function openIM(editId){
   var inv=editId?DB.invoices.find(function(x){return x.id===editId;}):null;
   // Support both single orderId (legacy) and orderIds array
   var invOrderIds=inv?(Array.isArray(inv.orderIds)?inv.orderIds:(inv.orderId?[inv.orderId]:[])):[];
-  var allOrders=DB.orders.filter(function(o){return o.status==='active'||o.status==='completed';});
+  var allOrders=DB.orders.filter(function(o){return o.status==='active';});
   INV_ITEMS=inv&&Array.isArray(inv.items)?inv.items.map(function(it){return{desc:it.desc||'',note:it.note||'',qty:it.qty||1,price:it.price||0};}):[];
   var autoNum=inv?inv.number:nin();
   var orderChecks=allOrders.map(function(o){var sel=invOrderIds.indexOf(o.id)>=0;return '<label style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;cursor:pointer;'+(sel?'background:#151720;':'')+'hover:background:#13151f"><input type="checkbox" class="inv-order-cb" value="'+o.id+'"'+(sel?' checked':'')+' onchange="updateInvInfo()" style="width:15px;height:15px;accent-color:#f59e0b"><span style="font-size:13px;font-weight:600">'+e(o.name)+'</span><span style="font-size:12px;color:#64748b;margin-left:4px">'+e((gc(o.clientId)&&gc(o.clientId).company||gc(o.clientId)&&gc(o.clientId).name||''))+'</span><span class="mono" style="font-size:11px;color:#f59e0b;margin-left:auto">'+fmtM(o.price)+'</span></label>';}).join('');
@@ -754,10 +744,6 @@ function expClients(){exportCSV(DB.clients,[{label:'Jméno',key:'name'},{label:'
 function expArchive(){exportCSV(DB.orders.filter(function(o){return o.status==='archived';}),[{label:'Název',key:'name'},{label:'Stav',key:'stage'},{label:'Cena',key:'price'},{label:'Deadline',key:'deadline'}],'archiv.csv');}
 function expTime(){exportCSV(DB.entries,[{label:'Datum',key:'date'},{label:'Zakázka',fn:function(x){var o=go(x.orderId);return o?o.name:'';}},{label:'Popis',key:'description'},{label:'Délka (min)',fn:function(x){return Math.round((x.duration||0)/60);}}],'cas.csv');}
 function expInvoices(){exportCSV(DB.invoices,[{label:'Číslo',key:'number'},{label:'Příjemce',key:'recipient'},{label:'Částka',key:'amount'},{label:'Měna',key:'currency'},{label:'Vystaveno',key:'issued'},{label:'Splatnost',key:'dueDate'},{label:'Stav',key:'status'}],'faktury.csv');}
-
-
-
-
 </script>
 </body>
 </html>
