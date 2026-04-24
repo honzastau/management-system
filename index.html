@@ -472,7 +472,7 @@ var dlBadge=isCompleted?'<span style="color:'+(onTime?'#10b981':'#f59e0b')+';fon
     +(dC?'<div style="margin-bottom:14px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="flex:1;height:1px;background:#1a1f2e"></div><span style="font-size:11px;font-weight:700;color:#10b981;text-transform:uppercase;letter-spacing:.1em;padding:0 12px;white-space:nowrap">\u2713 Dokon\u010den\u00e9 zak\u00e1zky</span><div style="flex:1;height:1px;background:#1a1f2e"></div></div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:15px">'+dC+'</div></div>':''));
 }
 
-function getMilestones(o){try{return JSON.parse(o.milestones||'[]');}catch(e){return[];}}
+function getMilestones(o){if(!o.milestones)return[];if(Array.isArray(o.milestones))return o.milestones;try{return JSON.parse(o.milestones);}catch(e){return[];}}
 
 function renderTimeline(o,oInvs,paidInv,sentInv){
   var custom=getMilestones(o);
