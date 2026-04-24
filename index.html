@@ -483,7 +483,6 @@ function renderTimeline(o,oInvs,paidInv,sentInv){
   var fixed=[
     {key:'created',  label:'Přijetí',      date:o.created,                          done:true,    over:false, editable:true},
     {key:'deadline', label:o.deadline?'Deadline':'Deadline (neurčen)',      date:o.deadline,  done:isPaid,  over:!isPaid&&overDL, editable:true},
-    {key:'delivered', label:'Odevzdáno',    date:o.delivered||'',                           done:!!(o.delivered), over:false,            editable:false},
     {key:'invoiced', label:'Fakturováno',   date:sentInv?sentInv.issued:'',          done:isInv,   over:false, editable:false},
     {key:'paid',     label:'Zaplaceno',     date:paidInv?(paidInv.paidDate||paidInv.issued):'', done:isPaid, over:false, editable:false}
   ];
@@ -524,6 +523,11 @@ function renderTimeline(o,oInvs,paidInv,sentInv){
       axisItems.push({pct:datePct(m.date),type:'custom',label:m.label,date:m.date,col:m.done?'#8b5cf6':'#475569',done:m.done,idx:i});
     }
   });
+  // Odevzdáno — positioned by date chronologically
+  if(o.delivered){
+    var onT=o.deadline?o.delivered<=o.deadline:true;
+    axisItems.push({pct:datePct(o.delivered),type:'fixed',label:'Odevzdáno',date:o.delivered,col:onT?'#10b981':'#f87171',done:true});
+  }
   // Sort dated items
   axisItems.sort(function(a,b){return a.pct-b.pct;});
 
@@ -576,7 +580,13 @@ function renderTimeline(o,oInvs,paidInv,sentInv){
       +'<div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:'+(m.done?col:'transparent')+';border:2px solid '+col+'"></div>'
       +'<span style="flex:1;font-size:13px;font-weight:600;color:'+(m.done?'#e2e8f0':'#64748b')+'">'+m.label+'</span>'
       +editInput+'</div>';
-  }).join('');
+  }).join('')
+  // Odevzdáno row
+  +(o.delivered?'<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1a1f2e18">'
+    +'<div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:'+(o.deadline&&o.delivered<=o.deadline?'#10b981':'#f87171')+';border:2px solid '+(o.deadline&&o.delivered<=o.deadline?'#10b981':'#f87171')+';"></div>'
+    +'<span style="flex:1;font-size:13px;font-weight:600;color:#e2e8f0">Odevzdáno</span>'
+    +'<span class="mono" style="font-size:11px;color:'+(o.deadline&&o.delivered<=o.deadline?'#10b981':'#f87171')+'">'+fmtD(o.delivered)+(o.deadline?(' · '+(o.delivered<=o.deadline?'✓ v termínu':'⚠ po termínu')):'')+'</span>'
+    +'</div>':'');
 
   // ── Custom milestones list ────────────────────────────────────
   var customSorted=custom.map(function(m,i){return Object.assign({},m,{_i:i});})
@@ -727,7 +737,7 @@ function vOrderDetail(id){
     +'">'+(o.status==='completed'?((o.delivered&&o.deadline?o.delivered<=o.deadline:dl>=0)?'✓ Splněno v termínu':'✓ Splněno po termínu'):(!o.deadline?'∞ Průběžná zakázka':dl<0?'Po termínu!':dl+' dní do deadline'))
     +'</span></div></div>'
     +'<button class="btn bg" onclick="openOM('+o.id+')">✎ Upravit</button>'
-    +(o.status==='completed'?'<button class="btn bg" onclick="restO('+o.id+')">↩ Aktivovat</button>':'<button class="btn bs" onclick="completeO('+o.id+')">✓ Dokončit</button>')
+    +(o.status==='completed'?'<button class="btn bg" onclick="restO('+o.id+')">↩ Aktivovat</button>':'<button class="btn bs" onclick="completeO('+o.id+')">✓ Dokončit</button>')+(o.status!=='archived'?'<button class="btn bg" onclick="deliverO('+o.id+')" style="'+(o.delivered?'color:#10b981;border-color:#10b98144':'')+'">&#128230; '+(o.delivered?'Odevzdáno '+fmtD(o.delivered):'Odevzdáno')+'</button>':'')
     +'<button class="btn bg" onclick="archO('+o.id+')">&#x229F;</button>'
     +'<button class="btn bd" onclick="delO('+o.id+')">&#x1F5D1;</button>'
     +'</div>';
@@ -838,21 +848,40 @@ async function updateCustomMilestone(oid,idx,val){
   await saveMilestones(oid,ms);
 }
 async function restO(id){var o=go(id);if(o){await mut('update','orders',{id:id,data:Object.assign({},o,{status:'active'})});toast('Zakázka obnovena','success');sv('orders');}}
-function completeO(id){
+
+function deliverO(id){
   var o=go(id);if(!o)return;
-  var defDate=today();
-  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:6px">Dokončit zakázku</div>'
+  var cur=o.delivered||today();
+  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:6px">Datum odevzdání</div>'
     +'<div style="font-size:13px;color:#64748b;margin-bottom:18px">'+e(o.name)+'</div>'
-    +'<div class="fr"><label class="lbl">Datum odevzdání</label><input class="inp" type="date" id="fdelivered" value="'+defDate+'"></div>'
-    +(o.deadline?'<div style="font-size:12px;color:#64748b;margin-bottom:16px">Deadline: '+fmtD(o.deadline)+(defDate<=o.deadline?' · <span style="color:#10b981">✓ V termínu</span>':' · <span style="color:#f87171">⚠ Po termínu</span>')+'</div>':'')
-    +'<div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="confirmComplete('+id+')">✓ Dokončit</button></div>');
+    +'<div class="fr"><label class="lbl">Kdy bylo odevzdáno zákazníkovi?</label>'
+    +'<input class="inp" type="date" id="fdelivered" value="'+cur+'"></div>'
+    +(o.deadline?'<div style="font-size:12px;color:#64748b;margin:-4px 0 16px">Deadline: <strong>'+fmtD(o.deadline)+'</strong></div>':'')
+    +'<div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button>'
+    +(o.delivered?'<button class="btn bd btn-sm" onclick="clearDeliver('+id+')">Zrušit odevzdání</button>':'')
+    +'<button class="btn bp" onclick="confirmDeliver('+id+')">Uložit</button></div>');
 }
-async function confirmComplete(id){
+async function confirmDeliver(id){
   var o=go(id);if(!o)return;
-  var delivered=$('fdelivered')&&$('fdelivered').value||today();
-  var ms=getMilestones(o).map(function(m){return Object.assign({},m,{done:true});});
-  await mut('update','orders',{id:id,data:Object.assign({},o,{status:'completed',delivered:delivered,milestones:JSON.stringify(ms)})});
+  var d=$('fdelivered')&&$('fdelivered').value;
+  if(!d)return toast('Zadej datum','error');
+  await mut('update','orders',{id:id,data:Object.assign({},o,{delivered:d})});
   closeModal();
+  var onTime=o.deadline?d<=o.deadline:true;
+  toast('Odevzdáno '+(onTime?'✓ v termínu':'⚠ po termínu'),'success');
+  vOrderDetail(id);
+}
+async function clearDeliver(id){
+  var o=go(id);if(!o)return;
+  await mut('update','orders',{id:id,data:Object.assign({},o,{delivered:''})});
+  closeModal();
+  toast('Datum odevzdání odstraněno','success');
+  vOrderDetail(id);
+}
+async function completeO(id){
+  var o=go(id);if(!o)return;
+  var ms=getMilestones(o).map(function(m){return Object.assign({},m,{done:true});});
+  await mut('update','orders',{id:id,data:Object.assign({},o,{status:'completed',milestones:JSON.stringify(ms)})});
   toast('Zakázka dokončena','success');
   vOrderDetail(id);
 }
