@@ -477,127 +477,109 @@ function renderTimeline(o,oInvs,paidInv,sentInv){
   var isPaid=o.status==='completed';
   var isInv=!!(sentInv||isPaid);
   var overDL=o.deadline&&new Date()>new Date(o.deadline);
-  var hasDeadline=!!(o.deadline);
 
-  // All 4 fixed milestones — always shown on axis, even without a date
+  // 5 fixed milestones (Odevzdáno inserted by date below)
   var fixed=[
-    {key:'created',  label:'Přijetí',      date:o.created,                          done:true,    over:false, editable:true},
-    {key:'deadline', label:o.deadline?'Deadline':'Deadline (neurčen)',      date:o.deadline,  done:isPaid,  over:!isPaid&&overDL, editable:true},
-    {key:'invoiced', label:'Fakturováno',   date:sentInv?sentInv.issued:'',          done:isInv,   over:false, editable:false},
+    {key:'created',  label:'Přijetí',      date:o.created,   done:true,   over:false, editable:'created'},
+    {key:'deadline', label:o.deadline?'Deadline':'Deadline (neurčen)', date:o.deadline, done:isPaid, over:!isPaid&&overDL, editable:'deadline'},
+    {key:'invoiced', label:'Fakturováno',   date:sentInv?sentInv.issued:'',  done:isInv, over:false, editable:false},
     {key:'paid',     label:'Zaplaceno',     date:paidInv?(paidInv.paidDate||paidInv.issued):'', done:isPaid, over:false, editable:false}
   ];
 
-  // ── Build axis ──────────────────────────────────────────────
-  // Collect dates to determine range (from items that HAVE a date)
+  // Build date range
   var today=new Date(); today.setHours(12,0,0,0);
-  var datedFixed=fixed.filter(function(m){return m.date;});
-  var datedCustom=custom.filter(function(m){return m.date;});
-  var allDates=datedFixed.concat(datedCustom).map(function(m){return new Date(m.date).getTime();});
-  // Also include today as reference point
-  allDates.push(today.getTime());
-  var minD=Math.min.apply(null,allDates);
-  var maxD=Math.max.apply(null,allDates);
-  // Ensure range is at least 30 days so axis isn't cramped
-  if(maxD-minD < 30*86400000) maxD=minD+30*86400000;
+  var allTs=[today.getTime()];
+  fixed.forEach(function(m){if(m.date)allTs.push(new Date(m.date).getTime());});
+  custom.forEach(function(m){if(m.date)allTs.push(new Date(m.date).getTime());});
+  if(o.delivered)allTs.push(new Date(o.delivered).getTime());
+  var minD=Math.min.apply(null,allTs);
+  var maxD=Math.max.apply(null,allTs);
+  if(maxD-minD<30*86400000)maxD=minD+30*86400000;
   var range=maxD-minD;
+  function dpct(d){return Math.min(96,Math.max(3,Math.round((new Date(d).getTime()-minD)/range*93)+3));}
 
-  function datePct(d){
-    var t=new Date(d).getTime();
-    return Math.min(97,Math.max(3,Math.round((t-minD)/range*94)+3));
-  }
-
-  // Assign positions: dated items get date-based pct, undated fixed get evenly spaced at right
+  // Build axis items — all dated items sorted chronologically
   var axisItems=[];
-  var undatedFixed=[];
   fixed.forEach(function(m){
+    if(!m.date)return;
     var col=m.done?'#10b981':m.over?'#f87171':'#334155';
-    if(m.date){
-      axisItems.push({pct:datePct(m.date),type:'fixed',label:m.label,date:m.date,col:col,done:m.done,over:m.over});
-    } else {
-      undatedFixed.push({type:'fixed',label:m.label,date:'',col:col,done:m.done,over:false});
-    }
+    axisItems.push({pct:dpct(m.date),type:'fixed',label:m.label,date:m.date,col:col,done:m.done});
   });
-  // Add custom milestones with dates
   custom.forEach(function(m,i){
-    if(m.date){
-      axisItems.push({pct:datePct(m.date),type:'custom',label:m.label,date:m.date,col:m.done?'#8b5cf6':'#475569',done:m.done,idx:i});
-    }
+    if(!m.date)return;
+    axisItems.push({pct:dpct(m.date),type:'custom',label:m.label,date:m.date,col:m.done?'#8b5cf6':'#475569',done:m.done,idx:i});
   });
-  // Odevzdáno — positioned by date chronologically
   if(o.delivered){
     var onT=o.deadline?o.delivered<=o.deadline:true;
-    axisItems.push({pct:datePct(o.delivered),type:'fixed',label:'Odevzdáno',date:o.delivered,col:onT?'#10b981':'#f87171',done:true});
+    axisItems.push({pct:dpct(o.delivered),type:'fixed',label:'Odevzdáno',date:o.delivered,col:onT?'#10b981':'#f87171',done:true});
   }
-  // Sort dated items
   axisItems.sort(function(a,b){return a.pct-b.pct;});
 
-  // Place undated fixed milestones at the right end, spaced out
-  var rightStart=axisItems.length?Math.max(axisItems[axisItems.length-1].pct+5,70):70;
-  undatedFixed.forEach(function(m,i){
-    var p=Math.min(97, rightStart+i*Math.floor((98-rightStart)/(undatedFixed.length||1)));
-    axisItems.push(Object.assign({},m,{pct:p}));
+  // Undated fixed milestones — append at right with spacing
+  var undated=fixed.filter(function(m){return !m.date;});
+  var lastPct=axisItems.length?axisItems[axisItems.length-1].pct:55;
+  var gap=undated.length?Math.max(6,Math.floor((97-lastPct)/(undated.length+1))):0;
+  undated.forEach(function(m,i){
+    var col=m.done?'#10b981':m.over?'#f87171':'#334155';
+    axisItems.push({pct:Math.min(97,lastPct+gap*(i+1)),type:'fixed',label:m.label,date:'',col:col,done:m.done});
   });
 
-  // ── Render axis HTML ──────────────────────────────────────────
-  var axisHTML='<div style="position:relative;height:70px;margin:8px 0 4px 0">'
-    // Base line
+  // Render axis
+  var axisHTML='<div style="position:relative;height:80px;margin:8px 0 4px 0">'
     +'<div style="position:absolute;top:22px;left:0;right:0;height:2px;background:#1a1f2e"></div>';
-
-  // Colored segments between consecutive items
   for(var k=0;k<axisItems.length-1;k++){
-    var seg=axisItems[k];var nxt=axisItems[k+1];
-    var lc=(seg.done&&nxt.done)?'#10b981':(seg.done?'#10b98155':'#1a1f2e');
-    axisHTML+='<div style="position:absolute;top:22px;left:'+seg.pct+'%;width:'+(nxt.pct-seg.pct)+'%;height:2px;background:'+lc+'"></div>';
+    var a=axisItems[k],b=axisItems[k+1];
+    var lc=a.done&&b.done?'#10b981':a.done?'#10b98133':'#1a1f2e';
+    axisHTML+='<div style="position:absolute;top:22px;left:'+a.pct+'%;width:'+(b.pct-a.pct)+'%;height:2px;background:'+lc+'"></div>';
   }
-
-  // Dots and labels — alternate above/below to avoid overlap
   axisItems.forEach(function(item,k){
-    var isFixed=item.type==='fixed';
-    var sz=isFixed?12:8;
-    var top=22-Math.floor(sz/2);
-    var dot='<div style="position:absolute;top:'+top+'px;left:calc('+item.pct+'% - '+Math.floor(sz/2)+'px);width:'+sz+'px;height:'+sz+'px;border-radius:50%;'
-      +'background:'+(item.done?item.col:(item.over?item.col:'#0d0f1a'))+';'
-      +'border:2px solid '+item.col+';'
-      +'z-index:2;box-shadow:0 0 0 2px #09090f"></div>';
-    // Labels alternate: fixed below (top:38), custom above (top:-14)
-    var labelBelow=isFixed||(k%2===0);
-    var labelBelow2=k%2===0;
-    var labelTop=labelBelow2?40:-24;
-    var label='<div style="position:absolute;top:'+labelTop+'px;left:'+item.pct+'%;transform:translateX(-50%);white-space:nowrap;text-align:center;pointer-events:none">'
-      +'<div style="font-size:10px;font-weight:'+(isFixed?'700':'500')+';color:'+item.col+'">'+e(item.label)+'</div>'
-      +(item.date?'<div class="mono" style="font-size:9px;color:#475569">'+fmtD(item.date)+'</div>':'')+'</div>';
+    var isF=item.type==='fixed';
+    var sz=isF?12:8;
+    var half=Math.floor(sz/2);
+    var dot='<div style="position:absolute;top:'+(22-half)+'px;left:calc('+item.pct+'% - '+half+'px);width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+(item.done?item.col:'#09090f')+';border:2px solid '+item.col+';z-index:2;box-shadow:0 0 0 2px #09090f"></div>';
+    var below=k%2===0;
+    var labelTop=below?37:-28;
+    var label='<div style="position:absolute;top:'+labelTop+'px;left:'+item.pct+'%;transform:translateX(-50%);text-align:center;pointer-events:none;min-width:60px">'
+      +'<div style="font-size:9px;font-weight:'+(isF?'700':'500')+';color:'+item.col+';white-space:nowrap">'+e(item.label)+'</div>'
+      +'<div class="mono" style="font-size:9px;color:'+(item.date?'#64748b':'#334155')+';white-space:nowrap">'+(item.date?fmtD(item.date):'—')+'</div>'
+      +'</div>';
     axisHTML+=dot+label;
   });
   axisHTML+='</div>';
 
-  // ── Fixed milestones editable list ───────────────────────────
-  var fixedListH=fixed.map(function(m){
+  // Fixed milestones list — date always visible, pencil for editable
+  function fixedRow(m){
     var col=m.done?'#10b981':m.over?'#f87171':'#64748b';
-    var editInput=m.editable
-      ?'<input type="date" value="'+(m.date||'')+'" onchange="updateFixedMilestone(\''+o.id+'\',\''+m.key+'\',this.value)" style="background:#13151f;border:1px solid #1a1f2e;border-radius:6px;padding:3px 8px;font-size:11px;color:#e2e8f0;font-family:inherit">'
-      :'<span class="mono" style="font-size:11px;color:#475569">'+(m.date?fmtD(m.date):'—')+'</span>';
-    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1a1f2e18">'
+    var dateStr=m.date?('<span class="mono" style="font-size:12px;color:'+(m.done?'#10b981':m.over?'#f87171':'#94a3b8')+'">'+fmtD(m.date)+'</span>'):'<span style="font-size:12px;color:#334155">—</span>';
+    var editBtn='';
+    if(m.editable==='created')editBtn='<button onclick="openEditFixed('+o.id+',\'created\',\''+( m.date||'')+'\',\'Datum přijetí\')" style="background:none;border:none;color:#475569;cursor:pointer;padding:2px 5px;font-size:13px;line-height:1" title="Upravit">✎</button>';
+    if(m.editable==='deadline')editBtn='<button onclick="openEditFixed('+o.id+',\'deadline\',\''+(m.date||'')+'\',\'Deadline\')" style="background:none;border:none;color:#475569;cursor:pointer;padding:2px 5px;font-size:13px;line-height:1" title="Upravit">✎</button>';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1a1f2e22">'
       +'<div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:'+(m.done?col:'transparent')+';border:2px solid '+col+'"></div>'
       +'<span style="flex:1;font-size:13px;font-weight:600;color:'+(m.done?'#e2e8f0':'#64748b')+'">'+m.label+'</span>'
-      +editInput+'</div>';
-  }).join('')
-  // Odevzdáno row
-  +(o.delivered?'<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1a1f2e18">'
-    +'<div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:'+(o.deadline&&o.delivered<=o.deadline?'#10b981':'#f87171')+';border:2px solid '+(o.deadline&&o.delivered<=o.deadline?'#10b981':'#f87171')+';"></div>'
-    +'<span style="flex:1;font-size:13px;font-weight:600;color:#e2e8f0">Odevzdáno</span>'
-    +'<span class="mono" style="font-size:11px;color:'+(o.deadline&&o.delivered<=o.deadline?'#10b981':'#f87171')+'">'+fmtD(o.delivered)+(o.deadline?(' · '+(o.delivered<=o.deadline?'✓ v termínu':'⚠ po termínu')):'')+'</span>'
-    +'</div>':'');
+      +dateStr+editBtn+'</div>';
+  }
+  var fixedListH=fixed.map(fixedRow).join('')
+    // Odevzdáno row
+    +(o.delivered?'<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1a1f2e22">'
+      +'<div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:'+(o.deadline&&o.delivered<=o.deadline?'#10b981':'#f87171')+';border:2px solid '+(o.deadline&&o.delivered<=o.deadline?'#10b981':'#f87171')+'"></div>'
+      +'<span style="flex:1;font-size:13px;font-weight:600;color:#e2e8f0">Odevzdáno</span>'
+      +'<span class="mono" style="font-size:12px;color:'+(o.deadline&&o.delivered<=o.deadline?'#10b981':'#f87171')+'">'+fmtD(o.delivered)+'</span>'
+      +'<span style="font-size:11px;color:'+(o.deadline&&o.delivered<=o.deadline?'#10b981':'#f87171')+';margin-left:4px">'+(o.deadline?(o.delivered<=o.deadline?'✓ v termínu':'⚠ po termínu'):'')+'</span>'
+      +'<button onclick="deliverO('+o.id+')" style="background:none;border:none;color:#475569;cursor:pointer;padding:2px 5px;font-size:13px;line-height:1" title="Upravit">✎</button>'
+      +'</div>':'');
 
-  // ── Custom milestones list ────────────────────────────────────
+  // Custom milestones list
   var customSorted=custom.map(function(m,i){return Object.assign({},m,{_i:i});})
     .sort(function(a,b){return(a.date||'zzz')<(b.date||'zzz')?-1:1;});
   var customListH=customSorted.map(function(m){
     var i=m._i;
-    return '<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #1a1f2e18">'
+    return '<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #1a1f2e22">'
       +'<button onclick="toggleMilestone('+o.id+','+i+')" style="width:18px;height:18px;border-radius:50%;border:2px solid '+(m.done?'#8b5cf6':'#475569')+';background:'+(m.done?'#8b5cf6':'transparent')+';cursor:pointer;flex-shrink:0;margin-top:1px;transition:all .2s"></button>'
       +'<div style="flex:1;min-width:0"><div style="font-size:13px;'+(m.done?'text-decoration:line-through;color:#475569':'color:#e2e8f0')+'">'+e(m.label)+'</div>'
       +(m.note?'<div style="font-size:11px;color:#64748b;margin-top:1px">'+e(m.note)+'</div>':'')+'</div>'
-      +'<input type="date" value="'+(m.date||'')+'" onchange="updateCustomMilestone('+o.id+','+i+',this.value)" style="background:#13151f;border:1px solid #1a1f2e;border-radius:6px;padding:3px 8px;font-size:11px;color:#e2e8f0;font-family:inherit;flex-shrink:0">'
+      +'<span class="mono" style="font-size:12px;color:#64748b;align-self:center">'+(m.date?fmtD(m.date):'—')+'</span>'
+      +'<button onclick="openEditCustom('+o.id+','+i+',\''+(m.date||'')+'\')" style="background:none;border:none;color:#475569;cursor:pointer;padding:2px 5px;font-size:13px;line-height:1;align-self:center" title="Upravit datum">✎</button>'
       +'<button class="btn bd btn-sm" style="padding:2px 7px;font-size:11px;flex-shrink:0" onclick="delMilestone('+o.id+','+i+')">&#x2715;</button>'
       +'</div>';
   }).join('');
@@ -608,11 +590,11 @@ function renderTimeline(o,oInvs,paidInv,sentInv){
     +'<button class="btn bg btn-sm" onclick="showAddMilestone('+o.id+')">+ Volný milník</button>'
     +'</div>'
     +axisHTML
-    +'<div style="border-top:1px solid #1a1f2e;padding-top:12px;margin-top:8px;margin-bottom:4px">'
-    +'<div style="font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Pevné milníky</div>'
+    +'<div style="border-top:1px solid #1a1f2e;padding-top:10px;margin-top:4px">'
+    +'<div style="font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Pevné milníky</div>'
     +fixedListH+'</div>'
-    +(custom.length?'<div style="border-top:1px solid #1a1f2e;padding-top:12px;margin-top:8px">'
-    +'<div style="font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Volné milníky</div>'
+    +(custom.length?'<div style="border-top:1px solid #1a1f2e;padding-top:10px;margin-top:8px">'
+    +'<div style="font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Volné milníky</div>'
     +customListH+'</div>':'')
     +'<div id="ml-form-'+o.id+'" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #1a1f2e">'
     +'<div style="display:flex;flex-direction:column;gap:8px">'
@@ -623,6 +605,7 @@ function renderTimeline(o,oInvs,paidInv,sentInv){
     +'<button class="btn bp btn-sm" onclick="addMilestone('+o.id+')">Přidat</button>'
     +'</div></div></div></div>';
 }
+
 
 
 function showAddMilestone(oid){
@@ -654,7 +637,7 @@ function vOrderDetail(id){
   var dl=Math.ceil((new Date(o.deadline)-new Date())/86400000);
   var tSec=ts(o.id);var ex=expSum(o.id);var profit=o.price-ex;
   var stColor=o.status==='completed'?'#10b981':o.status==='archived'?'#475569':'#f59e0b';
-  var oInvs=DB.invoices.filter(function(i){return i.orderId===o.id||(Array.isArray(i.orderIds)&&i.orderIds.indexOf(o.id)>=0);});
+  var oInvs=DB.invoices.filter(function(i){var ids=Array.isArray(i.orderIds)?i.orderIds:(typeof i.orderIds==='string'&&i.orderIds?JSON.parse(i.orderIds):[]);return i.orderId===o.id||ids.map(Number).indexOf(o.id)>=0;});
   var paidInv=oInvs.find(function(i){return i.status==='paid';});
   var sentInv=oInvs.find(function(i){return i.status==='sent'||i.status==='paid';});
   var tlH=renderTimeline(o,oInvs,paidInv,sentInv);
@@ -681,7 +664,7 @@ function vOrderDetail(id){
       +'<td class="mono" style="color:#ef4444;font-weight:700">'+fmtM(x.amount)+'</td>'
       +'<td><button class="btn bd btn-sm" style="padding:2px 7px;font-size:11px" onclick="delExp('+x.id+','+o.id+')">✕</button></td></tr>';
   }).join('');
-  var invs=DB.invoices.filter(function(i){return i.orderId===o.id||(Array.isArray(i.orderIds)&&i.orderIds.indexOf(o.id)>=0);});
+  var invs=DB.invoices.filter(function(i){var ids=Array.isArray(i.orderIds)?i.orderIds:(typeof i.orderIds==='string'&&i.orderIds?JSON.parse(i.orderIds):[]);return i.orderId===o.id||ids.map(Number).indexOf(o.id)>=0;});
   var invsH=invs.map(function(inv){
     var sc=inv.status==='paid'?{c:'#10b981',l:'Zaplaceno'}:inv.status==='sent'?{c:'#f59e0b',l:'Odesláno'}:{c:'#64748b',l:'Koncept'};
     return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #1a1f2e22">'
@@ -833,19 +816,31 @@ function saveProfile(){var data={companyName:$('pName').value,ico:$('pIco').valu
 // ═══ ACTIONS ═════════════════════════════════════════════════
 async function archO(id){confirmAction('Archivovat tuto zakázku?','Archivovat',async function(){var o=go(id);if(o){await mut('update','orders',{id:id,data:Object.assign({},o,{status:'archived'})});toast('Zakázka archivována','success');sv('orders');}});}
 
-async function updateFixedMilestone(oid,key,val){
-  var o=go(Number(oid));if(!o)return;
-  var upd={};
-  if(key==='created')upd.created=val;
-  if(key==='deadline')upd.deadline=val;
-  await mut('update','orders',{id:Number(oid),data:Object.assign({},o,upd)});
-  toast('Milník aktualizován','success');
+
+function openEditFixed(oid,key,curDate,label){
+  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:18px">Upravit: '+label+'</div>'
+    +'<div class="fr"><label class="lbl">Datum</label><input class="inp" type="date" id="fedit" value="'+curDate+'"></div>'
+    +'<div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button>'
+    +'<button class="btn bp" onclick="saveEditFixed('+oid+',\''+key+'\')">' +'Uložit</button></div>');
 }
-async function updateCustomMilestone(oid,idx,val){
+async function saveEditFixed(oid,key){
+  var val=$('fedit')&&$('fedit').value;
   var o=go(oid);if(!o)return;
-  var ms=getMilestones(o);if(!ms[idx])return;
-  ms[idx].date=val;
-  await saveMilestones(oid,ms);
+  var upd={};upd[key]=val;
+  await mut('update','orders',{id:oid,data:Object.assign({},o,upd)});
+  closeModal();toast('Milník aktualizován','success');vOrderDetail(oid);
+}
+function openEditCustom(oid,idx,curDate){
+  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:18px">Upravit datum milníku</div>'
+    +'<div class="fr"><label class="lbl">Datum</label><input class="inp" type="date" id="fedit" value="'+curDate+'"></div>'
+    +'<div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button>'
+    +'<button class="btn bp" onclick="saveEditCustom('+oid+','+idx+')">Uložit</button></div>');
+}
+async function saveEditCustom(oid,idx){
+  var val=$('fedit')&&$('fedit').value;
+  var o=go(oid);var ms=getMilestones(o);
+  if(ms[idx])ms[idx].date=val;
+  await saveMilestones(oid,ms);closeModal();
 }
 async function restO(id){var o=go(id);if(o){await mut('update','orders',{id:id,data:Object.assign({},o,{status:'active'})});toast('Zakázka obnovena','success');sv('orders');}}
 
