@@ -936,7 +936,7 @@ async function saveNote(oid){var txt=$('ntxt').value.trim();if(!txt)return toast
 
 function openIM(editId){
   INV_EDIT_ID=editId||null;
-  var inv=editId?DB.invoices.find(function(x){return x.id===editId;}):null;
+  var inv=editId?DB.invoices.find(function(x){return Number(x.id)===Number(editId);}):null;
   // Support both single orderId (legacy) and orderIds array
   var invOrderIds=inv?(Array.isArray(inv.orderIds)&&inv.orderIds.length?inv.orderIds.map(Number):(inv.orderId?[Number(inv.orderId)]:[])):[];
   var needsRepair=editId&&inv&&(!Array.isArray(inv.orderIds)||!inv.orderIds.length);
