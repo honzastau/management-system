@@ -443,7 +443,8 @@ function vOrders(){
     var pct=o.deadline?Math.min(100,Math.max(0,(new Date()-new Date(o.created))/(new Date(o.deadline)-new Date(o.created))*100)):0;
     var ex=expSum(o.id);var profit=o.price-ex;
     var bc=isCompleted?'#10b981':e(o.color);
-    var dlBadge=isCompleted?(dl>=0?'<span style="color:#10b981;font-weight:700">\u2713 V termínu</span>':'<span style="color:#f59e0b;font-weight:700">\u2713 Po termínu</span>'):(!o.deadline?'<span style="color:#8b5cf6;font-weight:600">\u221e Průběžná</span>':dl<0?'<span style="color:#f87171">\u26a0 Po termínu</span>':dl<14?'<span style="color:#fbbf24">'+dl+' dní</span>':'<span style="color:#64748b">'+dl+' dní</span>');
+    var onTime=o.delivered&&o.deadline?o.delivered<=o.deadline:dl>=0;
+var dlBadge=isCompleted?'<span style="color:'+(onTime?'#10b981':'#f59e0b')+';font-weight:700">'+(onTime?'\u2713 V termínu':'\u2713 Po termínu')+'</span>':(!o.deadline?'<span style="color:#8b5cf6;font-weight:600">\u221e Průběžná</span>':dl<0?'<span style="color:#f87171">\u26a0 Po termínu</span>':dl<14?'<span style="color:#fbbf24">'+dl+' dní</span>':'<span style="color:#64748b">'+dl+' dní</span>');
     var actionBtns=isCompleted
       ?'<button class="btn bg btn-sm" onclick="restO('+o.id+')" title="Znovu aktivovat">\u21a9 Aktivovat</button>'
       :(isR?'<span style="font-size:12px;color:#10b981;padding:5px 10px;font-weight:700">\u25cf Běží</span>':'<button class="btn bs btn-sm" onclick="startTimer('+o.id+')" title="Spustit čas">\u25b6</button>');
@@ -482,6 +483,7 @@ function renderTimeline(o,oInvs,paidInv,sentInv){
   var fixed=[
     {key:'created',  label:'Přijetí',      date:o.created,                          done:true,    over:false, editable:true},
     {key:'deadline', label:o.deadline?'Deadline':'Deadline (neurčen)',      date:o.deadline,  done:isPaid,  over:!isPaid&&overDL, editable:true},
+    {key:'delivered', label:'Odevzdáno',    date:o.delivered||'',                           done:!!(o.delivered), over:false,            editable:false},
     {key:'invoiced', label:'Fakturováno',   date:sentInv?sentInv.issued:'',          done:isInv,   over:false, editable:false},
     {key:'paid',     label:'Zaplaceno',     date:paidInv?(paidInv.paidDate||paidInv.issued):'', done:isPaid, over:false, editable:false}
   ];
@@ -513,7 +515,7 @@ function renderTimeline(o,oInvs,paidInv,sentInv){
     if(m.date){
       axisItems.push({pct:datePct(m.date),type:'fixed',label:m.label,date:m.date,col:col,done:m.done,over:m.over});
     } else {
-      undatedFixed.push({type:'fixed',label:m.label,date:'',col:col,done:false,over:false});
+      undatedFixed.push({type:'fixed',label:m.label,date:'',col:col,done:m.done,over:false});
     }
   });
   // Add custom milestones with dates
@@ -555,11 +557,11 @@ function renderTimeline(o,oInvs,paidInv,sentInv){
       +'z-index:2;box-shadow:0 0 0 2px #09090f"></div>';
     // Labels alternate: fixed below (top:38), custom above (top:-14)
     var labelBelow=isFixed||(k%2===0);
-    var labelTop=labelBelow?38:-18;
-    var label='<div style="position:absolute;top:'+labelTop+'px;left:'+item.pct+'%;transform:translateX(-50%);white-space:nowrap;text-align:center">'
+    var labelBelow2=k%2===0;
+    var labelTop=labelBelow2?40:-24;
+    var label='<div style="position:absolute;top:'+labelTop+'px;left:'+item.pct+'%;transform:translateX(-50%);white-space:nowrap;text-align:center;pointer-events:none">'
       +'<div style="font-size:10px;font-weight:'+(isFixed?'700':'500')+';color:'+item.col+'">'+e(item.label)+'</div>'
-      +(item.date?'<div class="mono" style="font-size:9px;color:#475569">'+fmtD(item.date)+'</div>':'')
-      +'</div>';
+      +(item.date?'<div class="mono" style="font-size:9px;color:#475569">'+fmtD(item.date)+'</div>':'')+'</div>';
     axisHTML+=dot+label;
   });
   axisHTML+='</div>';
@@ -722,7 +724,7 @@ function vOrderDetail(id){
     +'<h1 style="font-size:22px;font-weight:800">'+e(o.name)+'</h1>'
     +'<div style="font-size:13px;color:#64748b;margin-top:2px">'+e((cl&&cl.company||cl&&cl.name||'—'))
     +' · <span style="color:'+(o.status==='completed'?'#10b981':(dl<0?'#f87171':dl<14?'#fbbf24':'#64748b'))
-    +'">'+(o.status==='completed'?(dl>=0?'✓ Splněno v termínu':'✓ Splněno po termínu'):(!o.deadline?'∞ Průběžná zakázka':dl<0?'Po termínu!':dl+' dní do deadline'))
+    +'">'+(o.status==='completed'?((o.delivered&&o.deadline?o.delivered<=o.deadline:dl>=0)?'✓ Splněno v termínu':'✓ Splněno po termínu'):(!o.deadline?'∞ Průběžná zakázka':dl<0?'Po termínu!':dl+' dní do deadline'))
     +'</span></div></div>'
     +'<button class="btn bg" onclick="openOM('+o.id+')">✎ Upravit</button>'
     +(o.status==='completed'?'<button class="btn bg" onclick="restO('+o.id+')">↩ Aktivovat</button>':'<button class="btn bs" onclick="completeO('+o.id+')">✓ Dokončit</button>')
@@ -836,7 +838,24 @@ async function updateCustomMilestone(oid,idx,val){
   await saveMilestones(oid,ms);
 }
 async function restO(id){var o=go(id);if(o){await mut('update','orders',{id:id,data:Object.assign({},o,{status:'active'})});toast('Zakázka obnovena','success');sv('orders');}}
-async function completeO(id){var o=go(id);if(!o)return;var ms=getMilestones(o).map(function(m){return Object.assign({},m,{done:true});});await mut('update','orders',{id:id,data:Object.assign({},o,{status:'completed',milestones:JSON.stringify(ms)})});toast('Zakázka dokončena','success');vOrderDetail(id);}
+function completeO(id){
+  var o=go(id);if(!o)return;
+  var defDate=today();
+  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:6px">Dokončit zakázku</div>'
+    +'<div style="font-size:13px;color:#64748b;margin-bottom:18px">'+e(o.name)+'</div>'
+    +'<div class="fr"><label class="lbl">Datum odevzdání</label><input class="inp" type="date" id="fdelivered" value="'+defDate+'"></div>'
+    +(o.deadline?'<div style="font-size:12px;color:#64748b;margin-bottom:16px">Deadline: '+fmtD(o.deadline)+(defDate<=o.deadline?' · <span style="color:#10b981">✓ V termínu</span>':' · <span style="color:#f87171">⚠ Po termínu</span>')+'</div>':'')
+    +'<div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="confirmComplete('+id+')">✓ Dokončit</button></div>');
+}
+async function confirmComplete(id){
+  var o=go(id);if(!o)return;
+  var delivered=$('fdelivered')&&$('fdelivered').value||today();
+  var ms=getMilestones(o).map(function(m){return Object.assign({},m,{done:true});});
+  await mut('update','orders',{id:id,data:Object.assign({},o,{status:'completed',delivered:delivered,milestones:JSON.stringify(ms)})});
+  closeModal();
+  toast('Zakázka dokončena','success');
+  vOrderDetail(id);
+}
 async function delO(id){confirmAction('Opravdu smazat tuto zakázku? Tato akce je nevratná.','Smazat',async function(){await mut('delete','orders',{id:id});toast('Zakázka smazána','success');sv('orders');});}
 async function delC(id){confirmAction('Smazat klienta?','Smazat',async function(){await mut('delete','clients',{id:id});toast('Klient smazán','success');sv('clients');});}
 async function delE(id,oid){confirmAction('Smazat tento záznam?','Smazat',async function(){await mut('delete','entries',{id:id});toast('Záznam smazán','success');if(oid)vOrderDetail(oid);});}
