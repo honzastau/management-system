@@ -246,6 +246,41 @@ function hideErr(){$('err-bar').style.display='none';}
 function toggleSidebar(){$('sidebar').classList.toggle('open');$('sidebar-ov').classList.toggle('open');}
 function closeSidebar(){$('sidebar').classList.remove('open');$('sidebar-ov').classList.remove('open');}
 
+
+function startTimerInline(oid){
+  if(TS.running)return;
+  var descEl=$('tdesc-start-'+oid);
+  var desc=descEl?descEl.value:'';
+  var o=go(oid);
+  TS={running:true,orderId:oid,elapsed:0,desc:desc};
+  TS.iv=setInterval(function(){
+    TS.elapsed++;
+    var el=$('tdisp');if(el)el.textContent=fmtT(TS.elapsed);
+    // Also update global timer bar if visible
+    var tb=$('tdisp');if(tb)tb.textContent=fmtT(TS.elapsed);
+  },1000);
+  $('timer-bar').style.display='none'; // hide old bar, use inline
+  render(); // re-render detail to show running state
+}
+async function stopTimerInline(oid){
+  clearInterval(TS.iv);
+  var elapsed=TS.elapsed;var orderId=TS.orderId;
+  var descEl=$('tdesc');
+  var desc=(descEl&&descEl.value)||TS.desc||'Práce';
+  TS={running:false,orderId:null,elapsed:0,iv:null,desc:''};
+  $('timer-bar').style.display='none';
+  if(elapsed>0){
+    await mut('create','entries',{data:{orderId:orderId,description:desc,duration:elapsed,date:today()}});
+    toast('Čas uložen: '+fmtT(elapsed),'success');
+  }
+  vOrderDetail(oid);
+}
+function cancelTimer(){
+  clearInterval(TS.iv);
+  TS={running:false,orderId:null,elapsed:0,iv:null,desc:''};
+  $('timer-bar').style.display='none';
+  render();
+}
 function startTimer(oid){
   if(TS.running)return;var o=go(oid);TS={running:true,orderId:oid,elapsed:0};
   TS.iv=setInterval(function(){TS.elapsed++;$('tdisp').textContent=fmtT(TS.elapsed);},1000);
@@ -441,48 +476,122 @@ function renderTimeline(o,oInvs,paidInv,sentInv){
   var isPaid=o.status==='completed';
   var isInv=!!(sentInv||isPaid);
   var overDL=o.deadline&&new Date()>new Date(o.deadline);
+
+  // Fixed milestones
   var fixed=[
-    {label:'P\u0159ijet\u00ed zak\u00e1zky',date:o.created,done:true,over:false},
-    {label:'Deadline',date:o.deadline,done:isPaid,over:!isPaid&&overDL},
-    {label:'Fakturov\u00e1no',date:sentInv?sentInv.issued:'',done:isInv,over:false},
-    {label:'Zaplaceno',date:paidInv?(paidInv.paidDate||paidInv.issued):'',done:isPaid,over:false}
+    {key:'created',  label:'Přijetí zakázky', date:o.created,  done:true,             editable:true},
+    {key:'deadline', label:'Deadline',         date:o.deadline, done:isPaid, over:!isPaid&&overDL, editable:true},
+    {key:'invoiced', label:'Fakturováno',      date:sentInv?sentInv.issued:'', done:isInv, editable:false},
+    {key:'paid',     label:'Zaplaceno',        date:paidInv?(paidInv.paidDate||paidInv.issued):'', done:isPaid, editable:false}
   ];
-  var steps=fixed.map(function(m,i){
+
+  // Collect all milestones with dates for the timeline axis
+  // We'll position them along a date range
+  var allDated=[];
+  fixed.forEach(function(m){if(m.date)allDated.push({date:m.date,type:'fixed',ref:m});});
+  custom.forEach(function(m,i){if(m.date)allDated.push({date:m.date,type:'custom',ref:m,idx:i});});
+  allDated.sort(function(a,b){return a.date<b.date?-1:1;});
+
+  // Date range for positioning
+  var dates=allDated.map(function(x){return new Date(x.date).getTime();}).filter(Boolean);
+  var minD=dates.length?Math.min.apply(null,dates):Date.now();
+  var maxD=dates.length?Math.max.apply(null,dates):Date.now();
+  var range=maxD-minD||1;
+
+  // Build axis items (fixed + custom sorted by date)
+  function pct(d){return Math.round((new Date(d).getTime()-minD)/range*96)+2;}
+
+  // Build SVG-style horizontal axis
+  var axisItems=[];
+  fixed.forEach(function(m){
+    if(!m.date)return;
+    var p=pct(m.date);
     var cls=m.done?'done':m.over?'active':'future';
-    return '<div class="tl-step">'
-      +'<div class="tl-dot '+cls+'"></div>'
-      +(i<fixed.length-1?'<div class="tl-line '+(m.done?'done':'')+'"></div>':'')
-      +'<div class="tl-label '+cls+'">'+m.label+'</div>'
-      +(m.date?'<div class="tl-date">'+fmtD(m.date)+'</div>':'')
+    var col=m.done?'#10b981':m.over?'#f87171':'#475569';
+    axisItems.push({pct:p,type:'fixed',label:m.label,date:m.date,col:col,cls:cls,done:m.done});
+  });
+  custom.forEach(function(m,i){
+    if(!m.date)return;
+    var p=pct(m.date);
+    axisItems.push({pct:p,type:'custom',label:m.label,date:m.date,col:m.done?'#8b5cf6':'#475569',done:m.done,idx:i});
+  });
+  axisItems.sort(function(a,b){return a.pct-b.pct;});
+
+  // Build positioned timeline HTML
+  var axisHTML='<div style="position:relative;height:56px;margin:8px 0 28px 0">'
+    +'<div style="position:absolute;top:22px;left:0;right:0;height:2px;background:#1a1f2e"></div>';
+
+  // Draw connecting line segments with color
+  for(var k=0;k<axisItems.length-1;k++){
+    var seg=axisItems[k];
+    var nxt=axisItems[k+1];
+    var lc=seg.done&&nxt.done?'#10b981':'#1a1f2e';
+    axisHTML+='<div style="position:absolute;top:22px;left:'+seg.pct+'%;width:'+(nxt.pct-seg.pct)+'%;height:2px;background:'+lc+'"></div>';
+  }
+
+  axisItems.forEach(function(item,k){
+    var isFixed=item.type==='fixed';
+    var sz=isFixed?12:9;
+    var top=22-sz/2;
+    var dot='<div style="position:absolute;top:'+top+'px;left:calc('+item.pct+'% - '+sz/2+'px);width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+item.col+';border:2px solid '+(item.done?item.col:'#1a1f2e')+';z-index:2;box-shadow:0 0 0 2px #09090f"></div>';
+    // Label below or above alternating to avoid overlap
+    var labelTop=isFixed?38:4;
+    var label='<div style="position:absolute;top:'+labelTop+'px;left:'+item.pct+'%;transform:translateX(-50%);white-space:nowrap;font-size:10px;font-weight:'+(isFixed?'700':'500')+';color:'+item.col+';text-align:center">'+e(item.label)+'<div class="mono" style="font-size:9px;color:#475569;font-weight:400">'+fmtD(item.date)+'</div></div>';
+    axisHTML+=dot+label;
+  });
+  axisHTML+='</div>';
+
+  // ── Fixed milestones editable list ──
+  var fixedListH=fixed.map(function(m){
+    var col=m.done?'#10b981':m.over?'#f87171':'#64748b';
+    var editInput=m.editable
+      ?'<input type="date" value="'+(m.date||'')+'" onchange="updateFixedMilestone(\''+o.id+'\',\''+m.key+'\',this.value)" style="background:#13151f;border:1px solid #1a1f2e;border-radius:6px;padding:3px 8px;font-size:11px;color:#e2e8f0;font-family:inherit">'
+      :'<span class="mono" style="font-size:11px;color:#475569">'+(m.date?fmtD(m.date):'—')+'</span>';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1a1f2e18">'
+      +'<div style="width:10px;height:10px;border-radius:50%;background:'+col+';flex-shrink:0;border:2px solid '+(m.done?col:'#334155')+'"></div>'
+      +'<span style="flex:1;font-size:13px;font-weight:600;color:'+(m.done?'#e2e8f0':'#64748b')+'">'+m.label+'</span>'
+      +editInput
       +'</div>';
   }).join('');
-  var customH=custom.map(function(m,i){
-    return '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #1a1f2e22">'
-      +'<button onclick="toggleMilestone('+o.id+','+i+')" style="width:20px;height:20px;border-radius:50%;border:2px solid '+(m.done?'#10b981':'#475569')+';background:'+(m.done?'#10b981':'transparent')+';cursor:pointer;flex-shrink:0;margin-top:1px;transition:all .2s"></button>'
+
+  // ── Custom milestones list ──
+  var customSorted=custom.map(function(m,i){return Object.assign({},m,{_i:i});})
+    .sort(function(a,b){return (a.date||'zzz')<(b.date||'zzz')?-1:1;});
+  var customListH=customSorted.map(function(m){
+    var i=m._i;
+    return '<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #1a1f2e18">'
+      +'<button onclick="toggleMilestone('+o.id+','+i+')" style="width:18px;height:18px;border-radius:50%;border:2px solid '+(m.done?'#8b5cf6':'#475569')+';background:'+(m.done?'#8b5cf6':'transparent')+';cursor:pointer;flex-shrink:0;margin-top:1px;transition:all .2s"></button>'
       +'<div style="flex:1;min-width:0">'
       +'<div style="font-size:13px;'+(m.done?'text-decoration:line-through;color:#475569':'color:#e2e8f0')+'">'+e(m.label)+'</div>'
-      +(m.note?'<div style="font-size:11px;color:#64748b;margin-top:2px">'+e(m.note)+'</div>':'')
-      +(m.date?'<div class="mono" style="font-size:10px;color:#475569;margin-top:2px">'+fmtD(m.date)+'</div>':'')
+      +(m.note?'<div style="font-size:11px;color:#64748b;margin-top:1px">'+e(m.note)+'</div>':'')
       +'</div>'
+      +'<input type="date" value="'+(m.date||'')+'" onchange="updateCustomMilestone('+o.id+','+i+',this.value)" style="background:#13151f;border:1px solid #1a1f2e;border-radius:6px;padding:3px 8px;font-size:11px;color:#e2e8f0;font-family:inherit;flex-shrink:0">'
       +'<button class="btn bd btn-sm" style="padding:2px 7px;font-size:11px;flex-shrink:0" onclick="delMilestone('+o.id+','+i+')">&#x2715;</button>'
       +'</div>';
   }).join('');
+
   return '<div class="card" style="margin-bottom:18px">'
-    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
-    +'<div class="st" style="margin:0">Pr&#367;b&#283;h zak&#225;zky</div>'
-    +'<button class="btn bg btn-sm" onclick="showAddMilestone('+o.id+')">+ Voln&#253; milník</button>'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+    +'<div class="st" style="margin:0">Průběh zakázky</div>'
+    +'<button class="btn bg btn-sm" onclick="showAddMilestone('+o.id+')">+ Volný milník</button>'
     +'</div>'
-    +'<div class="tl">'+steps+'</div>'
-    +(custom.length?'<div style="border-top:1px solid #1a1f2e;margin-top:12px;padding-top:4px">'+customH+'</div>':'')
+    +axisHTML
+    +'<div style="border-top:1px solid #1a1f2e;padding-top:12px;margin-bottom:4px">'
+    +'<div style="font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Pevné milníky</div>'
+    +fixedListH+'</div>'
+    +(custom.length?'<div style="border-top:1px solid #1a1f2e;padding-top:12px;margin-top:8px">'
+    +'<div style="font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Volné milníky</div>'
+    +customListH+'</div>':'')
     +'<div id="ml-form-'+o.id+'" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #1a1f2e">'
     +'<div style="display:flex;flex-direction:column;gap:8px">'
-    +'<input class="inp" id="ml-label-'+o.id+'" placeholder="N&#225;zev miln&#237;ku *" style="padding:8px 12px;font-size:13px">'
-    +'<input class="inp" id="ml-note-'+o.id+'" placeholder="Pozn&#225;mka (voliteln&#233;)" style="padding:8px 12px;font-size:13px">'
+    +'<input class="inp" id="ml-label-'+o.id+'" placeholder="Název milníku *" style="padding:8px 12px;font-size:13px">'
+    +'<input class="inp" id="ml-note-'+o.id+'" placeholder="Poznámka (volitelné)" style="padding:8px 12px;font-size:13px">'
     +'<div style="display:grid;grid-template-columns:1fr auto;gap:8px">'
     +'<input class="inp" type="date" id="ml-date-'+o.id+'" style="padding:8px 12px;font-size:13px">'
-    +'<button class="btn bp btn-sm" onclick="addMilestone('+o.id+')">P&#345;idat</button>'
+    +'<button class="btn bp btn-sm" onclick="addMilestone('+o.id+')">Přidat</button>'
     +'</div></div></div></div>';
 }
+
 
 function showAddMilestone(oid){
   var f=$('ml-form-'+oid);
@@ -514,22 +623,112 @@ function vOrderDetail(id){
   var tSec=ts(o.id);var ex=expSum(o.id);var profit=o.price-ex;
   var stColor=o.status==='completed'?'#10b981':o.status==='archived'?'#475569':'#f59e0b';
   var oInvs=DB.invoices.filter(function(i){return i.orderId===o.id||(Array.isArray(i.orderIds)&&i.orderIds.indexOf(o.id)>=0);});
-  var hasPaidInv=oInvs.some(function(i){return i.status==='paid';});
   var paidInv=oInvs.find(function(i){return i.status==='paid';});
   var sentInv=oInvs.find(function(i){return i.status==='sent'||i.status==='paid';});
   var tlH=renderTimeline(o,oInvs,paidInv,sentInv);
   var orderNotes=DB.notes.filter(function(n){return n.orderId===o.id;}).sort(function(a,b){return b.id-a.id;});
-  var notesH=orderNotes.map(function(n){return '<div style="background:#13151f;border-radius:10px;padding:12px;margin-bottom:8px;position:relative"><div style="font-size:12px;color:#475569;margin-bottom:4px">'+fmtD(n.created)+'</div><div style="font-size:13px;color:#e2e8f0;line-height:1.6;white-space:pre-wrap">'+e(n.text)+'</div><button class="btn bd btn-sm" style="position:absolute;top:8px;right:8px;padding:2px 7px;font-size:11px" onclick="delNote('+n.id+','+o.id+')">✕</button></div>';}).join('');
+  var notesH=orderNotes.map(function(n){
+    return '<div style="background:#13151f;border-radius:10px;padding:12px;margin-bottom:8px;position:relative">'
+      +'<div style="font-size:12px;color:#475569;margin-bottom:4px">'+fmtD(n.created)+'</div>'
+      +'<div style="font-size:13px;color:#e2e8f0;line-height:1.6;white-space:pre-wrap">'+e(n.text)+'</div>'
+      +'<button class="btn bd btn-sm" style="position:absolute;top:8px;right:8px;padding:2px 7px;font-size:11px" onclick="delNote('+n.id+','+o.id+')">✕</button>'
+      +'</div>';
+  }).join('');
   var ents=DB.entries.filter(function(x){return x.orderId===o.id;}).sort(function(a,b){return b.id-a.id;});
-  var entsH=ents.map(function(x){return '<tr><td class="mono" style="font-size:12px;color:#64748b">'+x.date+'</td><td style="font-size:12px">'+e(x.description)+'</td><td class="mono" style="color:#8b5cf6;font-weight:700">'+fmtDur(x.duration)+'</td><td><button class="btn bd btn-sm" style="padding:2px 7px;font-size:11px" onclick="delE('+x.id+','+o.id+')">✕</button></td></tr>';}).join('');
+  var entsH=ents.map(function(x){
+    return '<tr><td class="mono" style="font-size:12px;color:#64748b">'+x.date+'</td>'
+      +'<td style="font-size:12px">'+e(x.description)+'</td>'
+      +'<td class="mono" style="color:#8b5cf6;font-weight:700">'+fmtDur(x.duration)+'</td>'
+      +'<td><button class="btn bd btn-sm" style="padding:2px 7px;font-size:11px" onclick="delE('+x.id+','+o.id+')">✕</button></td></tr>';
+  }).join('');
   var exps=DB.expenses.filter(function(x){return x.orderId===o.id;}).sort(function(a,b){return b.id-a.id;});
-  var expsH=exps.map(function(x){return '<tr><td class="mono" style="font-size:12px;color:#64748b">'+x.date+'</td><td style="font-size:12px">'+e(x.description)+'</td><td style="font-size:12px"><span class="stag">'+e(x.category)+'</span></td><td class="mono" style="color:#ef4444;font-weight:700">'+fmtM(x.amount)+'</td><td><button class="btn bd btn-sm" style="padding:2px 7px;font-size:11px" onclick="delExp('+x.id+','+o.id+')">✕</button></td></tr>';}).join('');
-  var invs=DB.invoices.filter(function(i){return i.orderId===o.id;});
-  var invsH=invs.map(function(inv){var sc=inv.status==='paid'?{c:'#10b981',l:'Zaplaceno'}:inv.status==='sent'?{c:'#f59e0b',l:'Odesláno'}:{c:'#64748b',l:'Koncept'};return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #1a1f2e22"><span class="mono" style="font-size:12px;color:#64748b;background:#13151f;padding:3px 8px;border-radius:6px">'+e(inv.number)+'</span><span style="flex:1;font-size:13px">'+fmtD(inv.issued)+'</span><span class="mono" style="font-weight:700">'+fmtM(inv.amount)+'</span><span style="font-size:11px;color:'+sc.c+';font-weight:700">'+sc.l+'</span><button class="btn bg btn-sm" style="padding:3px 8px" onclick="printInv('+inv.id+')">🖨</button></div>';}).join('');
+  var expsH=exps.map(function(x){
+    return '<tr><td class="mono" style="font-size:12px;color:#64748b">'+x.date+'</td>'
+      +'<td style="font-size:12px">'+e(x.description)+'</td>'
+      +'<td style="font-size:12px"><span class="stag">'+e(x.category)+'</span></td>'
+      +'<td class="mono" style="color:#ef4444;font-weight:700">'+fmtM(x.amount)+'</td>'
+      +'<td><button class="btn bd btn-sm" style="padding:2px 7px;font-size:11px" onclick="delExp('+x.id+','+o.id+')">✕</button></td></tr>';
+  }).join('');
+  var invs=DB.invoices.filter(function(i){return i.orderId===o.id||(Array.isArray(i.orderIds)&&i.orderIds.indexOf(o.id)>=0);});
+  var invsH=invs.map(function(inv){
+    var sc=inv.status==='paid'?{c:'#10b981',l:'Zaplaceno'}:inv.status==='sent'?{c:'#f59e0b',l:'Odesláno'}:{c:'#64748b',l:'Koncept'};
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #1a1f2e22">'
+      +'<span class="mono" style="font-size:12px;color:#64748b;background:#13151f;padding:3px 8px;border-radius:6px">'+e(inv.number)+'</span>'
+      +'<span style="flex:1;font-size:13px">'+fmtD(inv.issued)+'</span>'
+      +'<span class="mono" style="font-weight:700">'+fmtM(inv.amount)+'</span>'
+      +'<span style="font-size:11px;color:'+sc.c+';font-weight:700">'+sc.l+'</span>'
+      +'<button class="btn bg btn-sm" style="padding:3px 8px" onclick="printInv('+inv.id+')">&#x1F5A8;</button>'
+      +'</div>';
+  }).join('');
 
-  html('<div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;flex-wrap:wrap"><button class="btn bg" onclick="sv(\'orders\')">← Zpět</button><div style="flex:1;min-width:200px"><h1 style="font-size:22px;font-weight:800">'+e(o.name)+'</h1><div style="font-size:13px;color:#64748b;margin-top:2px">'+e((cl&&cl.company||cl&&cl.name||'—'))+' · <span style="color:'+(o.status==='completed'?'#10b981':(dl<0?'#f87171':dl<14?'#fbbf24':'#64748b'))+'">'+(o.status==='completed'?(dl>=0?'✓ Splněno v termínu':'✓ Splněno po termínu'):(dl<0?'Po termínu!':dl+' dní do deadline'))+'</span></div></div><span class="stag" style="color:'+stColor+';font-size:12px;padding:5px 14px">'+e(o.stage)+'</span><button class="btn bg" onclick="openOM('+o.id+')">✎ Upravit</button>'+(isR?'<span style="color:#10b981;font-weight:700;font-size:13px">● Časomíra běží</span>':'<button class="btn bs" onclick="startTimer('+o.id+')">▶ Spustit čas</button>')+(o.status==='completed'?'<button class="btn bg" onclick="restO('+o.id+')">↩ Aktivovat</button>':'<button class="btn bs" onclick="completeO('+o.id+')">✓ Dokončit</button>')+'<button class="btn bg" onclick="archO('+o.id+')">⊡</button><button class="btn bd" onclick="delO('+o.id+')">🗑</button></div>'+(o.description?'<div style="background:#13151f;border-radius:10px;padding:14px;margin-bottom:18px;font-size:13px;color:#94a3b8;line-height:1.6">'+e(o.description)+'</div>':'')+tlH+
-  '<div class="g4" style="margin-bottom:20px"><div class="sc"><div style="font-size:11px;color:#475569;text-transform:uppercase;font-weight:700;margin-bottom:6px">Cena</div><div class="mono" style="font-size:20px;font-weight:800;color:#f59e0b">'+fmtM(o.price)+'</div></div><div class="sc"><div style="font-size:11px;color:#475569;text-transform:uppercase;font-weight:700;margin-bottom:6px">Odpracováno</div><div class="mono" style="font-size:20px;font-weight:800;color:#8b5cf6">'+fmtDur(tSec)+'</div></div><div class="sc"><div style="font-size:11px;color:#475569;text-transform:uppercase;font-weight:700;margin-bottom:6px">Náklady</div><div class="mono" style="font-size:20px;font-weight:800;color:#ef4444">'+fmtM(ex)+'</div></div><div class="sc"><div style="font-size:11px;color:#475569;text-transform:uppercase;font-weight:700;margin-bottom:6px">Zisk</div><div class="mono" style="font-size:20px;font-weight:800;color:'+(profit>=0?'#10b981':'#ef4444')+'">'+fmtM(profit)+'</div></div></div>'+
-  '<div class="g2" style="margin-bottom:18px"><div class="card"><div style="display:flex;justify-content:space-between;margin-bottom:12px"><div class="st" style="margin:0">Poznámky</div><button class="btn bp btn-sm" onclick="openNoteM('+o.id+')">+ Přidat</button></div>'+(notesH||'<div style="color:#475569;font-size:13px;text-align:center;padding:20px 0">Zatím žádné poznámky</div>')+'</div><div><div class="card" style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:12px"><div class="st" style="margin:0">Časové záznamy</div><button class="btn bp btn-sm" onclick="openEM('+o.id+')">+ Přidat</button></div>'+(ents.length?'<table class="tbl"><thead><tr><th>Datum</th><th>Popis</th><th>Délka</th><th></th></tr></thead><tbody>'+entsH+'</tbody></table>':'<div style="color:#475569;font-size:13px;text-align:center;padding:14px 0">Žádné záznamy</div>')+'</div><div class="card"><div style="display:flex;justify-content:space-between;margin-bottom:12px"><div class="st" style="margin:0">Náklady</div><button class="btn bp btn-sm" onclick="openExpM('+o.id+')">+ Přidat</button></div>'+(exps.length?'<table class="tbl"><thead><tr><th>Datum</th><th>Popis</th><th>Kategorie</th><th>Částka</th><th></th></tr></thead><tbody>'+expsH+'</tbody></table>':'<div style="color:#475569;font-size:13px;text-align:center;padding:14px 0">Žádné náklady</div>')+'</div></div></div>'+(invs.length?'<div class="card"><div class="st">Faktury k zakázce</div>'+invsH+'</div>':''));
+  // ── Timer box ──
+  var timerBox='<div style="background:#0d0f1a;border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
+    +(isR
+      ?'<div class="mono" style="font-size:24px;font-weight:700;color:#f59e0b;min-width:95px" id="tdisp">'+fmtT(TS.elapsed)+'</div>'
+       +'<input class="inp" id="tdesc" placeholder="Popis práce..." style="flex:1;min-width:100px;padding:6px 10px;font-size:13px">'
+       +'<button class="btn bd" onclick="stopTimerInline('+o.id+')">&#9209; Uložit</button>'
+       +'<button class="btn bg btn-sm" onclick="cancelTimer()">&#x2715;</button>'
+      :'<span style="font-size:13px;color:#64748b">&#8987; Stopky</span>'
+       +'<input class="inp" id="tdesc-start-'+o.id+'" placeholder="Popis práce..." style="flex:1;min-width:100px;padding:6px 10px;font-size:13px">'
+       +'<button class="btn bs" onclick="startTimerInline('+o.id+')">&#9654; Spustit</button>'
+    )
+    +'</div>';
+
+  var timeCard='<div class="card" style="margin-bottom:14px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+    +'<div><div class="st" style="margin:0">Časové záznamy</div>'
+    +'<div style="font-size:12px;color:#8b5cf6;margin-top:2px">Celkem: <span class="mono" style="font-weight:700">'+fmtDur(tSec)+'</span></div>'
+    +'</div><button class="btn bg btn-sm" onclick="openEM('+o.id+')">+ Ruční záznam</button></div>'
+    +timerBox
+    +(ents.length
+      ?'<table class="tbl"><thead><tr><th>Datum</th><th>Popis</th><th>Délka</th><th></th></tr></thead><tbody>'+entsH+'</tbody></table>'
+      :'<div style="color:#475569;font-size:13px;text-align:center;padding:14px 0">Žádné záznamy</div>'
+    )
+    +'</div>';
+
+  var expCard='<div class="card">'
+    +'<div style="display:flex;justify-content:space-between;margin-bottom:12px">'
+    +'<div class="st" style="margin:0">Náklady</div>'
+    +'<button class="btn bp btn-sm" onclick="openExpM('+o.id+')">+ Přidat</button></div>'
+    +(exps.length
+      ?'<table class="tbl"><thead><tr><th>Datum</th><th>Popis</th><th>Kategorie</th><th>Částka</th><th></th></tr></thead><tbody>'+expsH+'</tbody></table>'
+      :'<div style="color:#475569;font-size:13px;text-align:center;padding:14px 0">Žádné náklady</div>'
+    )
+    +'</div>';
+
+  var hdr='<div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;flex-wrap:wrap">'
+    +'<button class="btn bg" onclick="sv(\'orders\')">← Zpět</button>'
+    +'<div style="flex:1;min-width:200px">'
+    +'<h1 style="font-size:22px;font-weight:800">'+e(o.name)+'</h1>'
+    +'<div style="font-size:13px;color:#64748b;margin-top:2px">'+e((cl&&cl.company||cl&&cl.name||'—'))
+    +' · <span style="color:'+(o.status==='completed'?'#10b981':(dl<0?'#f87171':dl<14?'#fbbf24':'#64748b'))
+    +'">'+(o.status==='completed'?(dl>=0?'✓ Splněno v termínu':'✓ Splněno po termínu'):(dl<0?'Po termínu!':dl+' dní do deadline'))
+    +'</span></div></div>'
+    +'<button class="btn bg" onclick="openOM('+o.id+')">✎ Upravit</button>'
+    +(o.status==='completed'?'<button class="btn bg" onclick="restO('+o.id+')">↩ Aktivovat</button>':'<button class="btn bs" onclick="completeO('+o.id+')">✓ Dokončit</button>')
+    +'<button class="btn bg" onclick="archO('+o.id+')">&#x229F;</button>'
+    +'<button class="btn bd" onclick="delO('+o.id+')">&#x1F5D1;</button>'
+    +'</div>';
+
+  var statsBar='<div class="g4" style="margin-bottom:20px">'
+    +'<div class="sc"><div style="font-size:11px;color:#475569;text-transform:uppercase;font-weight:700;margin-bottom:6px">Cena</div><div class="mono" style="font-size:20px;font-weight:800;color:#f59e0b">'+fmtM(o.price)+'</div></div>'
+    +'<div class="sc"><div style="font-size:11px;color:#475569;text-transform:uppercase;font-weight:700;margin-bottom:6px">Odpracováno</div><div class="mono" style="font-size:20px;font-weight:800;color:#8b5cf6">'+fmtDur(tSec)+'</div></div>'
+    +'<div class="sc"><div style="font-size:11px;color:#475569;text-transform:uppercase;font-weight:700;margin-bottom:6px">Náklady</div><div class="mono" style="font-size:20px;font-weight:800;color:#ef4444">'+fmtM(ex)+'</div></div>'
+    +'<div class="sc"><div style="font-size:11px;color:#475569;text-transform:uppercase;font-weight:700;margin-bottom:6px">Zisk</div><div class="mono" style="font-size:20px;font-weight:800;color:'+(profit>=0?'#10b981':'#ef4444')+'">'+fmtM(profit)+'</div></div>'
+    +'</div>';
+
+  html(hdr
+    +(o.description?'<div style="background:#13151f;border-radius:10px;padding:14px;margin-bottom:18px;font-size:13px;color:#94a3b8;line-height:1.6">'+e(o.description)+'</div>':'')
+    +tlH
+    +statsBar
+    +'<div class="g2" style="margin-bottom:18px">'
+    +'<div class="card"><div style="display:flex;justify-content:space-between;margin-bottom:12px"><div class="st" style="margin:0">Poznámky</div><button class="btn bp btn-sm" onclick="openNoteM('+o.id+')">+ Přidat</button></div>'
+    +(notesH||'<div style="color:#475569;font-size:13px;text-align:center;padding:20px 0">Zatím žádné poznámky</div>')
+    +'</div>'
+    +'<div>'+timeCard+expCard+'</div>'
+    +'</div>'
+    +(invs.length?'<div class="card"><div class="st">Faktury k zakázce</div>'+invsH+'</div>':'')
+  );
 }
 
 function vArchive(){
@@ -549,7 +748,7 @@ function vTime(){
 
 function vInvoices(){
   var sm={draft:{c:'#64748b',bg:'#13151f',l:'Koncept'},sent:{c:'#f59e0b',bg:'#1a1000',l:'Odesláno'},paid:{c:'#10b981',bg:'#041a0f',l:'Zaplaceno'}};
-  var invs=DB.invoices.slice().reverse();
+  var invs=DB.invoices.slice().sort(function(a,b){return String(b.number||'').localeCompare(String(a.number||''),undefined,{numeric:true,sensitivity:'base'});});
   invs=sFilter(invs,SEARCH,['number','recipient',function(i){var cl2=gc(i.clientId);return cl2?cl2.company||cl2.name:'';}]);
   var fieldLabels={duzp:'Datum UZP',dueDate:'Splatnost',paidDate:'Zaplaceno',issued:'Vystavení'};
   if(INV_FILTER.from||INV_FILTER.to){
@@ -601,6 +800,21 @@ function saveProfile(){var data={companyName:$('pName').value,ico:$('pIco').valu
 
 // ═══ ACTIONS ═════════════════════════════════════════════════
 async function archO(id){confirmAction('Archivovat tuto zakázku?','Archivovat',async function(){var o=go(id);if(o){await mut('update','orders',{id:id,data:Object.assign({},o,{status:'archived'})});toast('Zakázka archivována','success');sv('orders');}});}
+
+async function updateFixedMilestone(oid,key,val){
+  var o=go(Number(oid));if(!o)return;
+  var upd={};
+  if(key==='created')upd.created=val;
+  if(key==='deadline')upd.deadline=val;
+  await mut('update','orders',{id:Number(oid),data:Object.assign({},o,upd)});
+  toast('Milník aktualizován','success');
+}
+async function updateCustomMilestone(oid,idx,val){
+  var o=go(oid);if(!o)return;
+  var ms=getMilestones(o);if(!ms[idx])return;
+  ms[idx].date=val;
+  await saveMilestones(oid,ms);
+}
 async function restO(id){var o=go(id);if(o){await mut('update','orders',{id:id,data:Object.assign({},o,{status:'active'})});toast('Zakázka obnovena','success');sv('orders');}}
 async function completeO(id){var o=go(id);if(!o)return;var ms=getMilestones(o).map(function(m){return Object.assign({},m,{done:true});});await mut('update','orders',{id:id,data:Object.assign({},o,{status:'completed',milestones:JSON.stringify(ms)})});toast('Zakázka dokončena','success');vOrderDetail(id);}
 async function delO(id){confirmAction('Opravdu smazat tuto zakázku? Tato akce je nevratná.','Smazat',async function(){await mut('delete','orders',{id:id});toast('Zakázka smazána','success');sv('orders');});}
