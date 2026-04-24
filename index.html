@@ -980,8 +980,10 @@ function updateInvInfo(){
     +'Odpracováno: <span style="color:#8b5cf6">'+fmtDur(totalTime)+'</span>'
     +' · Hodnota: <span style="color:#f59e0b">'+fmtM(totalVal)+'</span>'
     +' · Náklady: <span style="color:#ef4444">'+fmtM(totalExp)+'</span>';
-  // Auto-fill položek pro NOVOU fakturu (INV_ITEMS prázdné = ještě nic nepřidáno)
-  if(INV_ITEMS.length===0&&orders.length>0){
+  // Auto-fill položek pro NOVOU fakturu
+  // Podmínka: buď žádné položky, nebo všechny položky jsou "prázdné" (nevyplněné)
+  var allEmpty=INV_ITEMS.every(function(it){return !it.desc&&!it.price;});
+  if(allEmpty&&orders.length>0){
     INV_ITEMS=orders.map(function(ord){
       return {desc:ord.name||'',note:'',qty:1,price:ord.price||0};
     });
@@ -1023,7 +1025,45 @@ function updIIDesc(i,v){
   if(match&&!INV_ITEMS[i].price){INV_ITEMS[i].price=match.price;renderII();}else{calcItot();}
 }
 function calcItot(){var tot=INV_ITEMS.reduce(function(s,it){return s+(Number(it.qty)||0)*(Number(it.price)||0);},0);var el=$('itot');if(el)el.textContent='Celkem: '+fmtM(tot);}
-async function saveI(editId){var items=INV_ITEMS.map(function(it){return{desc:it.desc,note:it.note||'',qty:Number(it.qty)||1,price:Number(it.price)||0};});var amount=items.reduce(function(s,it){return s+it.qty*it.price;},0);if(!amount)return toast('Přidej alespoň jednu položku s cenou','error');var oids=getSelectedOrderIds();var oid=oids[0]||0;var o=go(oid);var primaryClientId=o?o.clientId:'';var baseData={orderId:oid,orderIds:oids,clientId:primaryClientId,recipient:$('frec').value,items:items,amount:amount,currency:$('fcu').value,dueDate:$('fdu').value,note:'',issued:$('fiss').value||today(),duzp:$('fduzp').value||today(),number:$('finv').value||nin()};INV_ITEMS=[];closeModal();if(editId){var ex=DB.invoices.find(function(x){return x.id===editId;});if(ex){baseData.note=ex.note||'';}await mut('update','invoices',{id:editId,data:Object.assign({},ex,baseData)});toast('Faktura uložena','success');}else{await mut('create','invoices',{data:Object.assign({},baseData,{status:'draft'})});toast('Faktura vytvořena','success');}}
+async function saveI(editId){
+  var items=INV_ITEMS.map(function(it){return{desc:it.desc,note:it.note||'',qty:Number(it.qty)||1,price:Number(it.price)||0};});
+  var amount=items.reduce(function(s,it){return s+it.qty*it.price;},0);
+  if(!amount)return toast('Přidej alespoň jednu položku s cenou','error');
+  var oids=getSelectedOrderIds();
+  var oid=oids[0]||0;
+  var o=go(oid);
+  INV_ITEMS=[];closeModal();
+  if(editId){
+    // Při editaci: vždy zachovat existující data, přepsat jen co uživatel může změnit
+    var ex=DB.invoices.find(function(x){return x.id===editId;});
+    if(!ex)return toast('Faktura nenalezena','error');
+    // Zachovat orderId/orderIds/clientId z existující faktury pokud uživatel nezměnil výběr zakázek
+    var useOids=oids.length>0?oids:(ex.orderIds&&ex.orderIds.length?ex.orderIds:[ex.orderId].filter(Boolean));
+    var useOid=useOids[0]||ex.orderId||0;
+    var useClient=useOid?((go(useOid)&&go(useOid).clientId)||ex.clientId):ex.clientId;
+    var updated=Object.assign({},ex,{
+      orderId:useOid,
+      orderIds:useOids,
+      clientId:useClient,
+      recipient:$('frec').value||ex.recipient,
+      items:items,
+      amount:amount,
+      currency:$('fcu').value||ex.currency,
+      dueDate:$('fdu').value||ex.dueDate,
+      issued:$('fiss').value||ex.issued,
+      duzp:$('fduzp').value||ex.duzp,
+      number:$('finv').value||ex.number
+      // status, paidDate, note zachovány z ex přes Object.assign výše
+    });
+    await mut('update','invoices',{id:editId,data:updated});
+    toast('Faktura uložena','success');
+  }else{
+    var primaryClientId=o?o.clientId:'';
+    var baseData={orderId:oid,orderIds:oids,clientId:primaryClientId,recipient:$('frec').value,items:items,amount:amount,currency:$('fcu').value,dueDate:$('fdu').value,note:'',issued:$('fiss').value||today(),duzp:$('fduzp').value||today(),number:$('finv').value||nin(),status:'draft'};
+    await mut('create','invoices',{data:baseData});
+    toast('Faktura vytvořena','success');
+  }
+}
 
 function expClients(){exportCSV(DB.clients,[{label:'Jméno',key:'name'},{label:'Firma',key:'company'},{label:'Email',key:'email'},{label:'Telefon',key:'phone'},{label:'IČO',key:'ico'},{label:'DIČ',key:'dic'},{label:'Město',key:'city'}],'klienti.csv');}
 function expArchive(){exportCSV(DB.orders.filter(function(o){return o.status==='archived';}),[{label:'Název',key:'name'},{label:'Stav',key:'stage'},{label:'Cena',key:'price'},{label:'Deadline',key:'deadline'}],'archiv.csv');}
