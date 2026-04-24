@@ -742,7 +742,7 @@ function vOrderDetail(id){
     +'</div>'
     +'<div>'+timeCard+expCard+'</div>'
     +'</div>'
-    +(invs.length?'<div class="card"><div class="st">Faktury k zakázce</div>'+invsH+'</div>':'')
+    +(invs.length?'<div class="card"><div class="st">Faktury k zakázce</div>'+invsH+'</div>':'<div class="card" style="color:#475569;font-size:13px;text-align:center;padding:20px">Žádné faktury · <button class="btn bg btn-sm" onclick="openIM()" style="margin-left:8px">+ Nová faktura</button></div>')
   );
 }
 
@@ -936,12 +936,13 @@ async function saveNote(oid){var txt=$('ntxt').value.trim();if(!txt)return toast
 function openIM(editId){
   var inv=editId?DB.invoices.find(function(x){return x.id===editId;}):null;
   // Support both single orderId (legacy) and orderIds array
-  var invOrderIds=inv?(Array.isArray(inv.orderIds)?inv.orderIds:(inv.orderId?[inv.orderId]:[])):[];
+  var invOrderIds=inv?(Array.isArray(inv.orderIds)&&inv.orderIds.length?inv.orderIds.map(Number):(inv.orderId?[Number(inv.orderId)]:[])):[];
+  var needsRepair=editId&&inv&&(!Array.isArray(inv.orderIds)||!inv.orderIds.length);
   var allOrders=DB.orders.filter(function(o){return o.status==='active';});
   INV_ITEMS=inv&&Array.isArray(inv.items)?inv.items.map(function(it){return{desc:it.desc||'',note:it.note||'',qty:it.qty||1,price:it.price||0};}):[];
   var autoNum=inv?inv.number:nin();
   var orderChecks=allOrders.map(function(o){var sel=invOrderIds.indexOf(o.id)>=0;return '<label style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;cursor:pointer;'+(sel?'background:#151720;':'')+'hover:background:#13151f"><input type="checkbox" class="inv-order-cb" value="'+o.id+'"'+(sel?' checked':'')+' onchange="updateInvInfo()" style="width:15px;height:15px;accent-color:#f59e0b"><span style="font-size:13px;font-weight:600">'+e(o.name)+'</span><span style="font-size:12px;color:#64748b;margin-left:4px">'+e((gc(o.clientId)&&gc(o.clientId).company||gc(o.clientId)&&gc(o.clientId).name||''))+'</span><span class="mono" style="font-size:11px;color:#f59e0b;margin-left:auto">'+fmtM(o.price)+'</span></label>';}).join('');
-  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(editId?'Upravit fakturu':'Nová faktura')+'</div>'
+  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(editId?'Upravit fakturu':'Nová faktura')+'</div>'+(needsRepair?'<div style="background:#1a0a00;border:1px solid #f59e0b44;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#f59e0b">⚠ Tato faktura byla vytvořena bez uložení propojených zakázek. Zaškrtni všechny patřičné zakázky a ulož — propojení se tím opraví.</div>':'')
     +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:13px">'
     +'<div class="fr" style="margin:0"><label class="lbl">Číslo faktury</label><input class="inp" id="finv" value="'+autoNum+'"></div>'
     +'<div class="fr" style="margin:0"><label class="lbl">Datum vystavení</label><input class="inp" type="date" id="fiss" value="'+(inv?inv.issued:today())+'"></div>'
