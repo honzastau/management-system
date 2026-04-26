@@ -174,7 +174,18 @@ const EXP_CATS=['Materiál','Práce','Subdodávka','Doprava','Nářadí','Režie
 
 const $=id=>document.getElementById(id);
 const fmtM=(n,c)=>new Intl.NumberFormat('cs-CZ',{style:'currency',currency:c||'CZK',minimumFractionDigits:0}).format(n||0);
-const fmtD=d=>d?new Date(d).toLocaleDateString('cs-CZ'):'—';
+const fmtD=d=>{
+  if(!d)return'—';
+  try{return new Date(d+'T12:00:00').toLocaleDateString('cs-CZ');}catch(e){return String(d);}
+};
+function normDate(d){
+  if(!d)return'';
+  try{
+    var dt=d instanceof Date?d:new Date(d+'T12:00:00');
+    var y=dt.getFullYear(),m=String(dt.getMonth()+1).padStart(2,'0'),day=String(dt.getDate()).padStart(2,'0');
+    return y+'-'+m+'-'+day;
+  }catch(e){return typeof d==='string'?d.slice(0,10):'';}
+}
 const fmtDur=s=>{const h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h===0?m+' min':m===0?h+' hod':h+'h '+m+'m';};
 const fmtT=s=>String(Math.floor(s/3600)).padStart(2,'0')+':'+String(Math.floor((s%3600)/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
 const today=()=>new Date().toISOString().slice(0,10);
@@ -912,9 +923,27 @@ function closeModal(){$('modal-ov').classList.remove('open');INV_EDIT_ID=null;_E
 function openOM(id){
   var o=id?go(id):null;FC=(o&&o.color||'#f59e0b');
   var co=DB.clients.map(function(c){return '<option value="'+c.id+'"'+(Number(o&&o.clientId||0)===c.id?' selected':'')+'>'+e(c.company||c.name)+'</option>';}).join('');
-  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(o?'Upravit zakázku':'Nová zakázka')+'</div><div class="fr"><label class="lbl">Název *</label><input class="inp" id="fn" value="'+e((o&&o.name||''))+'" placeholder="Název zakázky"></div><div class="fr"><label class="lbl">Klient</label><select class="inp" id="fcl" onchange="autoColor()"><option value="">— bez klienta —</option>'+co+'</select></div><div class="fr"><label class="lbl">Popis</label><textarea class="inp" id="fd" rows="3" style="resize:vertical">'+e((o&&o.description||''))+'</textarea></div><div style="display:grid;grid-template-columns:1fr 90px;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">Cena</label><input class="inp" type="number" id="fp" value="'+((o&&o.price||''))+'"></div><div class="fr" style="margin:0"><label class="lbl">Měna</label><select class="inp" id="fcu"><option'+(((o&&o.currency||'CZK'))==='CZK'?' selected':'')+'>CZK</option><option'+((o&&o.currency==='EUR')?' selected':'')+'>EUR</option><option'+((o&&o.currency==='USD')?' selected':'')+'>USD</option></select></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">Datum přijetí</label><input class="inp" type="date" id="fcr" value="'+((o&&o.created||today()))+'"></div><div class="fr" style="margin:0"><label class="lbl">Deadline</label><input class="inp" type="date" id="fdl" value="'+((o&&o.deadline||''))+'"></div></div><div class="fr"><label class="lbl">Barva</label>'+cpick(FC,'FC')+'</div><div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="saveO('+((o&&o.id||0))+')">Uložit</button></div>');
+  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(o?'Upravit zakázku':'Nová zakázka')+'</div><div class="fr"><label class="lbl">Název *</label><input class="inp" id="fn" value="'+e((o&&o.name||''))+'" placeholder="Název zakázky"></div><div class="fr"><label class="lbl">Klient</label><select class="inp" id="fcl" onchange="autoColor()"><option value="">— bez klienta —</option>'+co+'</select></div><div class="fr"><label class="lbl">Popis</label><textarea class="inp" id="fd" rows="3" style="resize:vertical">'+e((o&&o.description||''))+'</textarea></div><div style="display:grid;grid-template-columns:1fr 90px;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">Cena</label><input class="inp" type="number" id="fp" value="'+((o&&o.price||''))+'"></div><div class="fr" style="margin:0"><label class="lbl">Měna</label><select class="inp" id="fcu"><option'+(((o&&o.currency||'CZK'))==='CZK'?' selected':'')+'>CZK</option><option'+((o&&o.currency==='EUR')?' selected':'')+'>EUR</option><option'+((o&&o.currency==='USD')?' selected':'')+'>USD</option></select></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">Datum přijetí</label><input class="inp" type="date" id="fcr" value="'+(normDate(o&&o.created)||today())+'"></div><div class="fr" style="margin:0"><label class="lbl">Deadline</label><input class="inp" type="date" id="fdl" value="'+(normDate(o&&o.deadline)||'')+'"></div></div><div class="fr"><label class="lbl">Barva</label>'+cpick(FC,'FC')+'</div><div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="saveO('+((o&&o.id||0))+')">Uložit</button></div>');
 }
-async function saveO(id){var name=$('fn').value.trim();if(!name)return toast('Zadej název','error');var data={name:name,clientId:Number($('fcl').value)||'',description:$('fd').value,price:Number($('fp').value)||0,currency:$('fcu').value,deadline:$('fdl').value,created:($('fcr')&&$('fcr').value||today()),color:FC};closeModal();if(id)await mut('update','orders',{id:id,data:Object.assign({},go(id),data)});else await mut('create','orders',{data:Object.assign({},data,{status:'active'})});toast(id?'Zakázka aktualizována':'Zakázka vytvořena','success');}
+async function saveO(id){
+  var name=$('fn').value.trim();if(!name)return toast('Zadej název','error');
+  var existing=id?go(id):null;
+  var data={
+    name:name,
+    clientId:Number($('fcl').value)||'',
+    description:$('fd').value,
+    price:Number($('fp').value)||0,
+    currency:$('fcu').value,
+    // Zachovat původní datum pokud pole prázdné
+    deadline:$('fdl').value||normDate(existing&&existing.deadline)||'',
+    created:($('fcr')&&$('fcr').value)||normDate(existing&&existing.created)||today(),
+    color:FC
+  };
+  closeModal();
+  if(id)await mut('update','orders',{id:id,data:Object.assign({},existing,data)});
+  else await mut('create','orders',{data:Object.assign({},data,{status:'active'})});
+  toast(id?'Zakázka aktualizována':'Zakázka vytvořena','success');
+}
 function openCM(id){
   var c=id?gc(id):null;FC=c?c.color:autoAssignColor();
   openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(c?'Upravit klienta':'Nový klient')+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">Jméno *</label><input class="inp" id="fn" value="'+e((c&&c.name||''))+'"></div><div class="fr" style="margin:0"><label class="lbl">Firma</label><input class="inp" id="fco" value="'+e((c&&c.company||''))+'"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">Email</label><input class="inp" type="email" id="fem" value="'+e((c&&c.email||''))+'"></div><div class="fr" style="margin:0"><label class="lbl">Telefon</label><input class="inp" type="text" id="fph" value="'+e((c&&c.phone||''))+'"></div></div><div class="fr"><label class="lbl">Adresa</label><input class="inp" id="fad" value="'+e((c&&c.address||''))+'"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">Město</label><input class="inp" id="fci" value="'+e((c&&c.city||''))+'"></div><div class="fr" style="margin:0"><label class="lbl">PSČ</label><input class="inp" id="fzi" value="'+e((c&&c.zip||''))+'"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">IČO</label><input class="inp" id="fico" value="'+e((c&&c.ico||''))+'"></div><div class="fr" style="margin:0"><label class="lbl">DIČ</label><input class="inp" id="fdic" value="'+e((c&&c.dic||''))+'"></div></div><div class="fr"><label class="lbl">Poznámky</label><textarea class="inp" id="fno" rows="2" style="resize:vertical">\'+(c&&c.notes||\'\')+\'</textarea></div><div class="fr"><label class="lbl">Barva</label>'+cpick(FC,'FC')+'</div><div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="saveC('+((c&&c.id||0))+')">Uložit</button></div>');
