@@ -263,21 +263,18 @@ function startTimerInline(oid){
   if(TS.running)return;
   var descEl=$('tdesc-start-'+oid);
   var desc=descEl?descEl.value:'';
-  var o=go(oid);
   TS={running:true,orderId:oid,elapsed:0,desc:desc};
   TS.iv=setInterval(function(){
     TS.elapsed++;
-    var el=$('tdisp');if(el)el.textContent=fmtT(TS.elapsed);
-    // Also update global timer bar if visible
-    var tb=$('tdisp');if(tb)tb.textContent=fmtT(TS.elapsed);
+    var el=$('tdisp-inline');if(el)el.textContent=fmtT(TS.elapsed);
   },1000);
-  $('timer-bar').style.display='none'; // hide old bar, use inline
-  render(); // re-render detail to show running state
+  $('timer-bar').style.display='none';
+  vOrderDetail(oid);
 }
 async function stopTimerInline(oid){
   clearInterval(TS.iv);
   var elapsed=TS.elapsed;var orderId=TS.orderId;
-  var descEl=$('tdesc');
+  var descEl=$('tdesc-inline');
   var desc=(descEl&&descEl.value)||TS.desc||'Práce';
   TS={running:false,orderId:null,elapsed:0,iv:null,desc:''};
   $('timer-bar').style.display='none';
@@ -708,8 +705,8 @@ function vOrderDetail(id){
   // ── Timer box ──
   var timerBox='<div style="background:#0d0f1a;border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
     +(isR
-      ?'<div class="mono" style="font-size:24px;font-weight:700;color:#f59e0b;min-width:95px" id="tdisp">'+fmtT(TS.elapsed)+'</div>'
-       +'<input class="inp" id="tdesc" placeholder="Popis práce..." style="flex:1;min-width:100px;padding:6px 10px;font-size:13px">'
+      ?'<div class="mono" style="font-size:24px;font-weight:700;color:#f59e0b;min-width:95px" id="tdisp-inline">'+fmtT(TS.elapsed)+'</div>'
+       +'<input class="inp" id="tdesc-inline" placeholder="Popis práce..." style="flex:1;min-width:100px;padding:6px 10px;font-size:13px">'
        +'<button class="btn bd" onclick="stopTimerInline('+o.id+')">&#9209; Uložit</button>'
        +'<button class="btn bg btn-sm" onclick="cancelTimer()">&#x2715;</button>'
       :'<span style="font-size:13px;color:#64748b">&#8987; Stopky</span>'
