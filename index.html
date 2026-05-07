@@ -193,7 +193,7 @@ const ts=oid=>DB.entries.filter(x=>x.orderId===oid).reduce((s,x)=>s+(x.duration|
 const gc=id=>DB.clients.find(c=>c.id===Number(id));
 const go=id=>DB.orders.find(o=>o.id===Number(id));
 const expSum=oid=>DB.expenses.filter(x=>x.orderId===oid).reduce((s,x)=>s+(x.amount||0),0);
-const nin=()=>{const y=new Date().getFullYear();const n=DB.invoices.filter(i=>(i.number||'').includes(String(y))).length+1;return 'FV-'+y+'-'+String(n).padStart(3,'0');};
+const nin=()=>{const y=new Date().getFullYear();const n=DB.invoices.filter(i=>(i.number||'').includes(String(y))).length+1;return y+'-'+String(n).padStart(3,'0');};
 const prof=()=>{try{return JSON.parse(localStorage.getItem('mgmt_profile')||'{}');}catch(e){return{};}};
 function sFilter(items,q,fields){if(!q)return items;const s=q.toLowerCase();return items.filter(it=>fields.some(f=>{const v=typeof f==='function'?f(it):it[f];return String(v||'').toLowerCase().includes(s);}));}
 function searchBox(ph){return '<div class="search-bar"><input class="inp" placeholder="'+ph+'" value="'+e(SEARCH)+'" oninput="SEARCH=this.value;render()"></div>';}
@@ -374,7 +374,7 @@ function printInv(id){
   w.document.write('<div class="page">');
 
   // Header
-  w.document.write('<div class="hdr"><div class="hdr-name">'+e(p.companyName||'Vaše firma')+'</div><div class="hdr-right"><div class="inv-type">Faktura — daňový doklad</div><div class="inv-num">'+e(inv.number)+'</div></div></div>');
+  w.document.write('<div class="hdr" style="justify-content:flex-end"><div class="hdr-right"><div class="inv-type">Faktura — daňový doklad</div><div class="inv-num">FAKTURA č. '+e(inv.number)+'</div></div></div>');
 
   // DODAVATEL | ODBĚRATEL
   var clAddr=cl?(e(cl.address||'')+(cl.city?' '+e(cl.city):'')+(cl.zip?', '+e(cl.zip):'')):'';
@@ -420,11 +420,6 @@ function printInv(id){
   // Total
   w.document.write('<div class="total-row"><div class="total-box"><div class="total-lbl">Celkem k úhradě</div><div class="total-amt">'+fmtM(inv.amount,inv.currency)+'</div></div></div>');
 
-  // Signature + Note
-  w.document.write('<div class="bottom">');
-  w.document.write('<div class="sig-box"><div class="sig-lbl">Razítko a podpis</div><div class="sig-line"></div></div>');
-  w.document.write('<div class="note-box"><div class="note-lbl">Poznámka</div><div class="note-txt">'+e(inv.note||'')+'</div></div>');
-  w.document.write('</div>');
 
   // Page footer
   w.document.write('<div class="pg-footer"><span>Vystavil(a): '+e(p.companyName||'')+'</span><span>Strana 1 z 1</span><span></span></div>');
