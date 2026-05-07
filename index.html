@@ -314,93 +314,122 @@ function exportCSV(data,cols,filename){
 function printInv(id){
   var inv=DB.invoices.find(function(i){return i.id===id;});var cl=gc((inv&&inv.clientId));var p=prof();
   var items=Array.isArray(inv.items)?inv.items:(typeof inv.items==='string'&&inv.items?JSON.parse(inv.items):[]);
-  var subtotal=items.reduce(function(s,it){return s+(Number(it.qty)||0)*(Number(it.price)||0);},0);
   var vs=(inv.number||'').replace(/\D/g,'');
   var spd=p.iban?'SPD*1.0*ACC:'+p.iban+'*AM:'+(inv.amount||0).toFixed(2)+'*CC:'+(inv.currency||'CZK')+'*MSG:'+inv.number+(vs?'*X-VS:'+vs:''):'';
-  var qr=spd?'https://api.qrserver.com/v1/create-qr-code/?size=130x130&data='+encodeURIComponent(spd):'';
+  var qr=spd?'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data='+encodeURIComponent(spd):'';
   var itemRows=items.map(function(it,i){
     var tot=(Number(it.qty)||0)*(Number(it.price)||0);
-    return '<tr style="background:'+(i%2?'#fafafa':'#fff')+'"><td style="padding:9px 12px;border-bottom:1px solid #f0f0f0"><div style="font-weight:600">'+e(it.desc)+'</div>'+(it.note?'<div style="font-size:11px;color:#888;margin-top:2px">'+e(it.note)+'</div>':'')+'</td><td style="padding:9px 12px;border-bottom:1px solid #f0f0f0;text-align:center;white-space:nowrap">'+it.qty+' ks</td><td style="padding:9px 12px;border-bottom:1px solid #f0f0f0;text-align:right;white-space:nowrap">'+fmtM(it.price,inv.currency)+'</td><td style="padding:9px 12px;border-bottom:1px solid #f0f0f0;text-align:right;white-space:nowrap;font-weight:700">'+fmtM(tot,inv.currency)+'</td></tr>';
+    return '<tr style="background:'+(i%2?'#f8fafc':'#fff')+'">'
+      +'<td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;text-align:center;white-space:nowrap;font-weight:600;width:70px">'+it.qty+' ks</td>'
+      +'<td style="padding:10px 14px;border-bottom:1px solid #e2e8f0"><div style="font-weight:500;color:#1a1a2e">'+e(it.desc)+'</div>'+(it.note?'<div style="font-size:11px;color:#64748b;margin-top:2px">'+e(it.note)+'</div>':'')+'</td>'
+      +'<td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;text-align:right;white-space:nowrap;width:130px">'+fmtM(it.price,inv.currency)+'</td>'
+      +'<td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;text-align:right;white-space:nowrap;font-weight:700;width:130px">'+fmtM(tot,inv.currency)+'</td>'
+      +'</tr>';
   }).join('');
   var w=window.open('','_blank');
-  var css='@import url(\'https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap\');'
-    +'*{box-sizing:border-box;margin:0;padding:0}'
-    +'body{font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;color:#1a1a2e;background:#fff;font-size:13px;line-height:1.5}'
-    +'.page{max-width:800px;margin:0 auto;padding:0}'
-    +'.hdr{display:flex;justify-content:space-between;align-items:flex-start;padding:28px 32px 0}'
-    +'.hdr-left .company{font-size:20px;font-weight:800;color:#1a1a2e;letter-spacing:-.03em}'
-    +'.hdr-left .sub{font-size:11px;color:#888;margin-top:2px}'
+  var css='*{box-sizing:border-box;margin:0;padding:0}'
+    +'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#1a1a2e;background:#fff;font-size:13px;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'.page{max-width:800px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}'
+    +'.hdr{display:flex;justify-content:space-between;align-items:flex-start;padding:22px 32px 18px;border-bottom:3px solid #1a1a2e}'
+    +'.hdr-name{font-size:20px;font-weight:900;color:#1a1a2e;letter-spacing:-.03em}'
     +'.hdr-right{text-align:right}'
-    +'.inv-num{font-size:24px;font-weight:800;letter-spacing:-.04em;color:#1a1a2e}'
-    +'.inv-doc{font-size:11px;color:#aaa;margin-top:2px;text-transform:uppercase;letter-spacing:.06em}'
-    +'.amber-bar{background:#f59e0b;padding:16px 32px;display:flex;justify-content:space-between;align-items:center;margin:16px 0}'
-    +'.pay-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#7a5000;margin-bottom:4px}'
-    +'.pay-amt{font-size:28px;font-weight:800;color:#1a1a2e;letter-spacing:-.04em}'
-    +'.bank-grid{display:flex;flex-direction:column;gap:3px;text-align:right}'
-    +'.bank-row{font-size:12px;color:#7a5000;display:flex;gap:8px;justify-content:flex-end}'
-    +'.bank-row .bk{font-weight:600;color:#1a1a2e;min-width:100px;text-align:right}'
-    +'.dates-row{display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid #f0e0b0;border-radius:0}'
-    +'.date-box{padding:10px 16px;border-right:1px solid #f0e0b0}'
-    +'.date-box:last-child{border-right:none}'
-    +'.date-lbl{font-size:10px;text-transform:uppercase;font-weight:700;color:#aaa;letter-spacing:.06em;margin-bottom:3px}'
-    +'.date-val{font-size:14px;font-weight:700;color:#1a1a2e}'
-    +'.date-val.due{color:#f59e0b}'
-    +'.parties{display:grid;grid-template-columns:1fr auto;gap:24px;padding:20px 32px;border-bottom:1px solid #f0f0f0;align-items:start}'
-    +'.party-lbl{font-size:10px;text-transform:uppercase;font-weight:700;color:#aaa;letter-spacing:.06em;margin-bottom:6px}'
-    +'.party-name{font-size:15px;font-weight:700;color:#1a1a2e;margin-bottom:4px}'
-    +'.party-detail{font-size:12px;color:#555;line-height:1.8}'
-    +'.party-ico{font-size:12px;color:#555;margin-top:6px}'
-    +'.items-section{padding:20px 32px}'
-    +'.items-lbl{font-size:11px;text-transform:uppercase;font-weight:700;color:#aaa;letter-spacing:.06em;margin-bottom:12px}'
+    +'.inv-type{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px}'
+    +'.inv-num{font-size:22px;font-weight:900;color:#1a1a2e;letter-spacing:-.03em}'
+    +'.parties{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e2e8f0}'
+    +'.party{padding:18px 32px}'
+    +'.party:first-child{border-right:1px solid #e2e8f0}'
+    +'.party-title{font-size:11px;font-weight:800;color:#1e40af;text-transform:uppercase;letter-spacing:.1em;margin-bottom:9px;padding-bottom:6px;border-bottom:2px solid #1e40af;display:inline-block}'
+    +'.party-name{font-size:14px;font-weight:700;margin-bottom:3px}'
+    +'.party-row{font-size:12px;color:#475569;margin-bottom:1px}'
+    +'.party-ico{font-size:12px;color:#1a1a2e;font-weight:600;margin-top:5px}'
+    +'.pay-bar{display:grid;grid-template-columns:1fr 1fr auto auto;background:#f1f5f9;border-bottom:1px solid #e2e8f0}'
+    +'.pay-col{padding:13px 18px;border-right:1px solid #e2e8f0}'
+    +'.pay-col:last-child{border-right:none}'
+    +'.pay-col.center{display:flex;align-items:center;justify-content:center}'
+    +'.p-lbl{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}'
+    +'.p-val{font-size:12px;font-weight:600;color:#1a1a2e;margin-bottom:7px}'
+    +'.p-val:last-child{margin-bottom:0}'
     +'table{width:100%;border-collapse:collapse}'
     +'thead tr{background:#1a1a2e}'
-    +'thead th{padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.04em}'
-    +'thead th:last-child,thead th:nth-child(3){text-align:right}'
-    +'thead th:nth-child(2){text-align:center}'
-    +'.summary-row{display:flex;justify-content:flex-end;padding:16px 32px 0}'
-    +'.summary-box{min-width:240px}'
-    +'.sum-line{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid #f0f0f0}'
-    +'.sum-line.total{border-bottom:none;border-top:2px solid #f59e0b;padding-top:10px;margin-top:4px}'
-    +'.sum-line.total .sl{font-size:15px;font-weight:800}'
-    +'.sum-line.total .sv{font-size:18px;font-weight:800;color:#f59e0b}'
-    +'.footer{padding:24px 32px;border-top:1px solid #f0f0f0;margin-top:20px;display:flex;justify-content:space-between;align-items:flex-start}'
-    +'.footer-left .thanks{font-size:14px;font-weight:700;margin-bottom:8px}'
-    +'.footer-detail{font-size:11px;color:#555;line-height:1.9}'
-    +'.print-btn{position:fixed;top:16px;right:16px;background:#f59e0b;color:#1a1a2e;border:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,sans-serif}'
-    +'@media print{.print-btn{display:none!important}body{font-size:12px}.pay-amt{font-size:24px}}';
+    +'thead th{padding:10px 14px;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.06em;text-align:left}'
+    +'thead th.r{text-align:right}'
+    +'thead th.c{text-align:center}'
+    +'.total-row{display:flex;justify-content:flex-end}'
+    +'.total-box{background:#1e3a5f;color:#fff;padding:15px 28px;display:flex;align-items:center;gap:32px;min-width:300px;justify-content:space-between}'
+    +'.total-lbl{font-size:12px;font-weight:700;color:#93c5fd;text-transform:uppercase;letter-spacing:.06em}'
+    +'.total-amt{font-size:22px;font-weight:900;letter-spacing:-.03em}'
+    +'.bottom{display:flex;border-top:1px solid #e2e8f0;margin-top:auto}'
+    +'.sig-box{flex:1;padding:20px 32px;border-right:1px solid #e2e8f0}'
+    +'.sig-lbl{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.07em;margin-bottom:30px}'
+    +'.sig-line{border-top:1px solid #94a3b8;width:150px}'
+    +'.note-box{flex:1;padding:20px 32px}'
+    +'.note-lbl{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px}'
+    +'.note-txt{font-size:12px;color:#475569;line-height:1.6}'
+    +'.pg-footer{border-top:1px solid #e2e8f0;padding:9px 32px;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8}'
+    +'.print-btn{position:fixed;top:16px;right:16px;background:#1e40af;color:#fff;border:none;padding:10px 22px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer}'
+    +'@media print{.print-btn{display:none!important}}';
 
   w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+e(inv.number)+'</title><style>'+css+'</style></head><body>');
   w.document.write('<button class="print-btn" onclick="window.print()">🖨 Tisknout / PDF</button>');
   w.document.write('<div class="page">');
+
   // Header
-  w.document.write('<div class="hdr"><div class="hdr-left"><div class="company">'+e(p.companyName||'Vaše firma')+'</div></div><div class="hdr-right"><div class="inv-num">'+e(inv.number)+'</div><div class="inv-doc">Daňový doklad</div></div></div>');
-  // Amber bar
-  w.document.write('<div class="amber-bar"><div><div class="pay-label">Prosím o zaplacení částky</div><div class="pay-amt">'+fmtM(inv.amount,inv.currency)+'</div></div>');
-  w.document.write('<div class="bank-grid">');
-  if(p.bankAccount)w.document.write('<div class="bank-row"><span>Bankovní účet</span><span class="bk">'+e(p.bankAccount)+'</span></div>');
-  if(vs)w.document.write('<div class="bank-row"><span>Variabilní symbol</span><span class="bk">'+vs+'</span></div>');
-  w.document.write('<div class="bank-row"><span>Způsob platby</span><span class="bk">Převodem</span></div>');
+  w.document.write('<div class="hdr"><div class="hdr-name">'+e(p.companyName||'Vaše firma')+'</div><div class="hdr-right"><div class="inv-type">Faktura — daňový doklad</div><div class="inv-num">'+e(inv.number)+'</div></div></div>');
+
+  // DODAVATEL | ODBĚRATEL
+  var clAddr=cl?(e(cl.address||'')+(cl.city?' '+e(cl.city):'')+(cl.zip?', '+e(cl.zip):'')):'';
+  var pAddr=e(p.address||'')+(p.city?' '+e(p.city):'')+(p.zip?', '+e(p.zip):'');
+  w.document.write('<div class="parties">');
+  w.document.write('<div class="party"><div class="party-title">Dodavatel</div>');
+  w.document.write('<div class="party-name">'+e(p.companyName||'—')+'</div>');
+  if(pAddr)w.document.write('<div class="party-row">'+pAddr+'</div>');
+  if(p.ico||p.dic)w.document.write('<div class="party-ico">'+(p.ico?'IČO: '+e(p.ico):'')+(p.ico&&p.dic?' &nbsp; ':'')+(p.dic?'DIČ: '+e(p.dic):'')+'</div>');
+  if(p.email)w.document.write('<div class="party-row" style="margin-top:5px">'+e(p.email)+'</div>');
+  if(p.phone)w.document.write('<div class="party-row">'+e(p.phone)+'</div>');
+  w.document.write('</div>');
+  w.document.write('<div class="party"><div class="party-title">Odběratel</div>');
+  w.document.write('<div class="party-name">'+e(cl&&cl.company||cl&&cl.name||inv.recipient||'—')+'</div>');
+  if(clAddr)w.document.write('<div class="party-row">'+clAddr+'</div>');
+  if(cl&&(cl.ico||cl.dic))w.document.write('<div class="party-ico">'+(cl.ico?'IČO: '+e(cl.ico):'')+(cl.ico&&cl.dic?' &nbsp; ':'')+(cl.dic?'DIČ: '+e(cl.dic):'')+'</div>');
+  if(cl&&cl.email)w.document.write('<div class="party-row" style="margin-top:5px">'+e(cl.email)+'</div>');
+  if(cl&&cl.phone)w.document.write('<div class="party-row">'+e(cl.phone)+'</div>');
   w.document.write('</div></div>');
-  // Dates row
-  w.document.write('<div style="padding:0 32px"><div class="dates-row"><div class="date-box"><div class="date-lbl">Datum vystavení</div><div class="date-val">'+fmtD(inv.issued)+'</div></div><div class="date-box"><div class="date-lbl">Datum splatnosti</div><div class="date-val due">'+fmtD(inv.dueDate)+'</div></div><div class="date-box"><div class="date-lbl">Datum zdaň. plnění</div><div class="date-val">'+fmtD(inv.issued)+'</div></div></div></div>');
-  // Parties
-  w.document.write('<div class="parties"><div><div class="party-lbl">Odběratel</div><div class="party-name">'+e((cl&&cl.company||cl&&cl.name||inv.recipient||'—'))+'</div>');
-  if(cl){w.document.write('<div class="party-detail">'+e(cl.address||'')+(cl.city?' '+e(cl.city):'')+'</div>');if(cl.ico||cl.dic)w.document.write('<div class="party-ico">'+(cl.ico?'IČO: '+e(cl.ico):'')+(cl.ico&&cl.dic?' &nbsp;&nbsp; ':'')+(cl.dic?'DIČ: '+e(cl.dic):'')+'</div>');}
+
+  // Payment bar
+  w.document.write('<div class="pay-bar">');
+  w.document.write('<div class="pay-col">');
+  if(p.bankAccount)w.document.write('<div class="p-lbl">Číslo účtu</div><div class="p-val">'+e(p.bankAccount)+'</div>');
+  if(p.iban)w.document.write('<div class="p-lbl">IBAN</div><div class="p-val">'+e(p.iban)+'</div>');
   w.document.write('</div>');
-  w.document.write(qr?'<div style="text-align:center"><img src="'+qr+'" width="110" height="110" style="display:block"/><div style="font-size:9px;color:#aaa;margin-top:4px;text-transform:uppercase;letter-spacing:.04em">QR platba</div></div>':'<div></div>');
+  w.document.write('<div class="pay-col">');
+  w.document.write('<div class="p-lbl">Forma úhrady</div><div class="p-val">Převodem</div>');
+  if(vs)w.document.write('<div class="p-lbl">Variabilní symbol</div><div class="p-val">'+vs+'</div>');
   w.document.write('</div>');
+  w.document.write('<div class="pay-col center">');
+  if(qr)w.document.write('<div style="text-align:center"><img src="'+qr+'" width="85" height="85"/><div style="font-size:9px;color:#64748b;margin-top:3px;text-transform:uppercase;letter-spacing:.04em">QR Platba</div></div>');
+  w.document.write('</div>');
+  w.document.write('<div class="pay-col">');
+  if(inv.duzp)w.document.write('<div class="p-lbl">Datum UZP</div><div class="p-val">'+fmtD(inv.duzp)+'</div>');
+  w.document.write('<div class="p-lbl">Datum vystavení</div><div class="p-val">'+fmtD(inv.issued)+'</div>');
+  w.document.write('<div class="p-lbl">Datum splatnosti</div><div class="p-val" style="color:#1e40af">'+fmtD(inv.dueDate)+'</div>');
+  w.document.write('</div></div>');
+
   // Items
-  w.document.write('<div class="items-section"><div class="items-lbl">Fakturujeme Vám následující položky</div>');
-  w.document.write('<table><thead><tr><th>Položka</th><th>Množství</th><th>Cena/ks</th><th>Celkem</th></tr></thead><tbody>'+itemRows+'</tbody></table></div>');
-  // Summary
-  w.document.write('<div class="summary-row"><div class="summary-box"><div class="sum-line"><span class="sl">Celkem bez DPH</span><span class="sv mono">'+fmtM(subtotal,inv.currency)+'</span></div>');
-  w.document.write('<div class="sum-line total"><span class="sl">K úhradě</span><span class="sv mono">'+fmtM(inv.amount,inv.currency)+'</span></div></div></div>');
-  // Note
-  if(inv.note)w.document.write('<div style="margin:12px 32px 0;padding:12px 16px;background:#fffbeb;border-left:3px solid #f59e0b;font-size:12px;color:#7a5000">'+e(inv.note)+'</div>');
-  // Footer
-  w.document.write('<div class="footer"><div class="footer-left"><div class="thanks">Díky za Vaši důvěru!</div><div class="footer-detail">'+e(p.companyName||'')+'<br>'+e(p.address||'')+(p.city?' '+e(p.city):'')+(p.zip?', '+e(p.zip):'')+'<br>'+(p.ico?'IČO: '+e(p.ico):'')+(p.dic?' &nbsp; DIČ: '+e(p.dic):'')+(p.email?'<br>'+e(p.email):'')+(p.phone?'<br>'+e(p.phone):'')+'</div></div>');
-  if(p.bankAccount)w.document.write('<div style="font-size:12px;text-align:right;color:#555;line-height:1.9"><div style="font-weight:700;margin-bottom:4px">Platební údaje</div>'+e(p.bankAccount)+(p.iban?'<br>IBAN: '+e(p.iban):'')+'</div>');
-  w.document.write('</div></div></body></html>');
+  w.document.write('<table><thead><tr><th class="c">Počet</th><th>Popis</th><th class="r">Jedn. cena</th><th class="r">Celkem</th></tr></thead><tbody>'+itemRows+'</tbody></table>');
+
+  // Total
+  w.document.write('<div class="total-row"><div class="total-box"><div class="total-lbl">Celkem k úhradě</div><div class="total-amt">'+fmtM(inv.amount,inv.currency)+'</div></div></div>');
+
+  // Signature + Note
+  w.document.write('<div class="bottom">');
+  w.document.write('<div class="sig-box"><div class="sig-lbl">Razítko a podpis</div><div class="sig-line"></div></div>');
+  w.document.write('<div class="note-box"><div class="note-lbl">Poznámka</div><div class="note-txt">'+e(inv.note||'')+'</div></div>');
+  w.document.write('</div>');
+
+  // Page footer
+  w.document.write('<div class="pg-footer"><span>Vystavil(a): '+e(p.companyName||'')+'</span><span>Strana 1 z 1</span><span></span></div>');
+
+  w.document.write('</div></body></html>');
   w.document.close();
 }
 
