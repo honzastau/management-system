@@ -320,7 +320,7 @@ function printInv(id){
   var qr=spd?'https://api.qrserver.com/v1/create-qr-code/?size=130x130&data='+encodeURIComponent(spd):'';
   var itemRows=items.map(function(it,i){
     var tot=(Number(it.qty)||0)*(Number(it.price)||0);
-    return '<tr style="background:'+(i%2?'#fafafa':'#fff')+'"><td style="padding:9px 12px;border-bottom:1px solid #f0f0f0">'+e(it.desc)+'</td><td style="padding:9px 12px;border-bottom:1px solid #f0f0f0;text-align:center;white-space:nowrap">'+it.qty+' ks</td><td style="padding:9px 12px;border-bottom:1px solid #f0f0f0;text-align:right;white-space:nowrap">'+fmtM(it.price,inv.currency)+'</td><td style="padding:9px 12px;border-bottom:1px solid #f0f0f0;text-align:right;white-space:nowrap;font-weight:700">'+fmtM(tot,inv.currency)+'</td></tr>';
+    return '<tr style="background:'+(i%2?'#fafafa':'#fff')+'"><td style="padding:9px 12px;border-bottom:1px solid #f0f0f0"><div style="font-weight:600">'+e(it.desc)+'</div>'+(it.note?'<div style="font-size:11px;color:#888;margin-top:2px">'+e(it.note)+'</div>':'')+'</td><td style="padding:9px 12px;border-bottom:1px solid #f0f0f0;text-align:center;white-space:nowrap">'+it.qty+' ks</td><td style="padding:9px 12px;border-bottom:1px solid #f0f0f0;text-align:right;white-space:nowrap">'+fmtM(it.price,inv.currency)+'</td><td style="padding:9px 12px;border-bottom:1px solid #f0f0f0;text-align:right;white-space:nowrap;font-weight:700">'+fmtM(tot,inv.currency)+'</td></tr>';
   }).join('');
   var w=window.open('','_blank');
   var css='@import url(\'https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap\');'
@@ -391,7 +391,7 @@ function printInv(id){
   w.document.write('</div>');
   // Items
   w.document.write('<div class="items-section"><div class="items-lbl">Fakturujeme Vám následující položky</div>');
-  w.document.write('<table><thead><tr><th>Popis</th><th>Množství</th><th>Cena/ks</th><th>Celkem</th></tr></thead><tbody>'+itemRows+'</tbody></table></div>');
+  w.document.write('<table><thead><tr><th>Položka</th><th>Množství</th><th>Cena/ks</th><th>Celkem</th></tr></thead><tbody>'+itemRows+'</tbody></table></div>');
   // Summary
   w.document.write('<div class="summary-row"><div class="summary-box"><div class="sum-line"><span class="sl">Celkem bez DPH</span><span class="sv mono">'+fmtM(subtotal,inv.currency)+'</span></div>');
   w.document.write('<div class="sum-line total"><span class="sl">K úhradě</span><span class="sv mono">'+fmtM(inv.amount,inv.currency)+'</span></div></div></div>');
