@@ -208,10 +208,19 @@ function boot(){$('setup').style.display='none';$('app').style.display='flex';lo
 async function apiFetch(p){var r=await fetch(getUrl()+'?'+new URLSearchParams(p));var j=await r.json();if(j.error)throw new Error(j.error);return j;}
 async function apiPost(b){var r=await fetch(getUrl(),{method:'POST',body:JSON.stringify(b)});var j=await r.json();if(j.error)throw new Error(j.error);return j;}
 
+function normalizeInvoices(invs){
+  return invs.map(function(inv){
+    if(typeof inv.items==='string')try{inv.items=JSON.parse(inv.items);}catch(e){inv.items=[];}
+    if(typeof inv.orderIds==='string')try{inv.orderIds=JSON.parse(inv.orderIds);}catch(e){inv.orderIds=[];}
+    if(!Array.isArray(inv.items))inv.items=[];
+    if(!Array.isArray(inv.orderIds))inv.orderIds=inv.orderId?[Number(inv.orderId)]:[];
+    return inv;
+  });
+}
 async function loadAll(){
   html('<div style="text-align:center;padding:80px;color:#475569">⟳ Načítám data…</div>');
   try{var d=await apiFetch({action:'getAll'});
-    DB.clients=d.clients||[];DB.orders=d.orders||[];DB.entries=d.entries||[];DB.invoices=d.invoices||[];DB.expenses=d.expenses||[];DB.notes=d.notes||[];
+    DB.clients=d.clients||[];DB.orders=d.orders||[];DB.entries=d.entries||[];DB.invoices=normalizeInvoices(d.invoices||[]);DB.expenses=d.expenses||[];DB.notes=d.notes||[];
     hideErr();badges();render();
   }catch(err){showErr(err.message);html('<div style="text-align:center;padding:80px;color:#475569">Chyba načítání.<br><small>'+e(err.message)+'</small></div>');}
 }
@@ -1095,7 +1104,7 @@ function renderII(){
       +'<div style="display:grid;grid-template-columns:1fr 70px 110px 32px;gap:6px;margin-bottom:6px;align-items:center">'
       +'<input class="inp" list="'+dlId+'" placeholder="Položka *" value="'+e(it.desc)+'" oninput="updIIDesc('+i+',this.value)" style="font-weight:600">'
       +'<input class="inp" type="number" placeholder="Ks" value="'+it.qty+'" oninput="updII('+i+',\'qty\',this.value)" style="text-align:center">'
-      +'<input class="inp" type="number" placeholder="Cena Kč" value="'+it.price+'" oninput="updII('+i+',\'price\',this.value)">'
+      +'<input class="inp" id="ii-price-'+i+'" type="number" placeholder="Cena Kč" value="'+it.price+'" oninput="updII('+i+',\'price\',this.value)">'
       +'<button class="btn bd btn-sm" style="padding:0 8px;height:100%" onclick="remII('+i+')">✕</button>'
       +'</div>'
       +'<input class="inp" placeholder="Popis (volitelné)" value="'+e(it.note||'')+'" oninput="updII('+i+',\'note\',this.value)" style="font-size:12px;color:#94a3b8">'
@@ -1106,7 +1115,8 @@ function updIIDesc(i,v){
   INV_ITEMS[i].desc=v;
   var suggs=getItemSuggestions();
   var match=suggs.find(function(s){return s.desc===v;});
-  if(match&&!INV_ITEMS[i].price){INV_ITEMS[i].price=match.price;renderII();}else{calcItot();}
+  if(match&&!INV_ITEMS[i].price){INV_ITEMS[i].price=match.price;var el=$('ii-price-'+i);if(el)el.value=match.price;}
+  calcItot();
 }
 function calcItot(){var tot=INV_ITEMS.reduce(function(s,it){return s+(Number(it.qty)||0)*(Number(it.price)||0);},0);var el=$('itot');if(el)el.textContent='Celkem: '+fmtM(tot);}
 async function saveI(editId){
@@ -1116,18 +1126,14 @@ async function saveI(editId){
   var oids=getSelectedOrderIds();
   var oid=oids[0]||0;
   var o=go(oid);
-  INV_ITEMS=[];closeModal();
   if(editId){
-    // Při editaci: vždy zachovat existující data, přepsat jen co uživatel může změnit
     var ex=DB.invoices.find(function(x){return x.id===editId;});
     if(!ex)return toast('Faktura nenalezena','error');
-    // Zachovat orderId/orderIds/clientId z existující faktury pokud uživatel nezměnil výběr zakázek
-    var useOids=oids.length>0?oids:(ex.orderIds&&ex.orderIds.length?ex.orderIds:[ex.orderId].filter(Boolean));
-    var useOid=useOids[0]||ex.orderId||0;
+    var useOid=oids[0]||0;
     var useClient=useOid?((go(useOid)&&go(useOid).clientId)||ex.clientId):ex.clientId;
     var updated=Object.assign({},ex,{
       orderId:useOid,
-      orderIds:useOids,
+      orderIds:oids,
       clientId:useClient,
       recipient:$('frec').value||ex.recipient,
       items:items,
@@ -1137,7 +1143,6 @@ async function saveI(editId){
       issued:$('fiss').value||ex.issued,
       duzp:$('fduzp').value||ex.duzp,
       number:$('finv').value||ex.number
-      // status, paidDate, note zachovány z ex přes Object.assign výše
     });
     await mut('update','invoices',{id:editId,data:updated});
     toast('Faktura uložena','success');
@@ -1147,6 +1152,7 @@ async function saveI(editId){
     await mut('create','invoices',{data:baseData});
     toast('Faktura vytvořena','success');
   }
+  INV_ITEMS=[];closeModal();
 }
 
 function expClients(){exportCSV(DB.clients,[{label:'Jméno',key:'name'},{label:'Firma',key:'company'},{label:'Email',key:'email'},{label:'Telefon',key:'phone'},{label:'IČO',key:'ico'},{label:'DIČ',key:'dic'},{label:'Město',key:'city'}],'klienti.csv');}
