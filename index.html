@@ -313,7 +313,7 @@ function exportCSV(data,cols,filename){
 
 function printInv(id){
   var inv=DB.invoices.find(function(i){return i.id===id;});var cl=gc((inv&&inv.clientId));var p=prof();
-  var items=Array.isArray(inv.items)?inv.items:[];
+  var items=Array.isArray(inv.items)?inv.items:(typeof inv.items==='string'&&inv.items?JSON.parse(inv.items):[]);
   var subtotal=items.reduce(function(s,it){return s+(Number(it.qty)||0)*(Number(it.price)||0);},0);
   var vs=(inv.number||'').replace(/\D/g,'');
   var spd=p.iban?'SPD*1.0*ACC:'+p.iban+'*AM:'+(inv.amount||0).toFixed(2)+'*CC:'+(inv.currency||'CZK')+'*MSG:'+inv.number+(vs?'*X-VS:'+vs:''):'';
