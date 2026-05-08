@@ -1181,7 +1181,7 @@ function openIM(editId){
   // Support both single orderId (legacy) and orderIds array
   var invOrderIds=inv?(Array.isArray(inv.orderIds)&&inv.orderIds.length?inv.orderIds.map(Number):(inv.orderId?[Number(inv.orderId)]:[])):[];
   var needsRepair=editId&&inv&&(!Array.isArray(inv.orderIds)||!inv.orderIds.length);
-  var allOrders=DB.orders.filter(function(o){return o.status==='active';});
+  var allOrders=DB.orders.filter(function(o){return o.status==='active'||invOrderIds.indexOf(o.id)>=0;});
   var rawItems=[];
   if(inv){
     if(Array.isArray(inv.items))rawItems=inv.items;
