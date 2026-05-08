@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="cs">
 <head>
 <meta charset="UTF-8"/>
@@ -59,6 +59,7 @@ select.inp option{background:var(--bg-in)}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}
+.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:13px}
 .mono{font-family:'SFMono-Regular','Menlo','Monaco','Consolas',monospace}
 .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .tbl{width:100%;border-collapse:collapse}
@@ -113,6 +114,7 @@ select.inp option{background:var(--bg-in)}
   .mc:nth-child(even){border-right:none}
   .mc:nth-child(3),.mc:nth-child(4){border-top:1px solid var(--bd)}
   .g4{grid-template-columns:repeat(2,1fr)}
+  .g5{grid-template-columns:repeat(2,1fr)}
   .g2{grid-template-columns:1fr}
   .g3{grid-template-columns:1fr}
   .mbox{padding:20px;width:95vw}
@@ -131,6 +133,7 @@ select.inp option{background:var(--bg-in)}
 .tl-label{font-size:10px;font-weight:700;color:var(--tx3);margin-top:8px;text-align:center;text-transform:uppercase;letter-spacing:.04em}
 .tl-label.done{color:var(--ok)}.tl-label.active{color:var(--ac)}
 .tl-date{font-size:10px;color:var(--tx3);margin-top:2px;font-family:'SFMono-Regular','Menlo','Monaco','Consolas',monospace}
+#tt{display:none;position:fixed;pointer-events:none;z-index:9999;background:var(--bg-card);border:1px solid var(--bd);border-radius:10px;padding:10px 14px;font-size:12px;color:var(--tx);white-space:nowrap;box-shadow:0 4px 24px #00000088}
 </style>
 </head>
 <body>
@@ -178,11 +181,12 @@ select.inp option{background:var(--bg-in)}
 </div>
 <div id="modal-ov" onclick="if(event.target===this)closeModal()"><div class="mbox" id="mbox" role="dialog" aria-modal="true" aria-labelledby="mbox-title"></div></div>
 <div id="sync">⟳ Ukládám…</div>
+<div id="tt"></div>
 <script>
 window.onerror=function(msg,src,line,col,err){document.body.innerHTML='<div style="background:#09090f;color:#f87171;padding:40px;font-family:sans-serif;min-height:100vh"><h2>Chyba aplikace</h2><p>'+msg+'</p><small>Řádek: '+line+'</small></div>';return false;};
 const DB={clients:[],orders:[],entries:[],invoices:[],expenses:[],notes:[]};
 let curView='dashboard';let TS={running:false,orderId:null,elapsed:0,iv:null};
-let FC='#f59e0b';let INV_ITEMS=[];let SEARCH='';let confirmCb=null;
+let FC='#f59e0b';let INV_ITEMS=[];let SEARCH='';let confirmCb=null;var _TTMAP={};
 var INV_FILTER={field:'duzp',from:'',to:''};
 var INV_EDIT_ID=null;
 var _EDIT_INV=null;
@@ -216,6 +220,9 @@ const nin=()=>{const y=new Date().getFullYear();const n=DB.invoices.filter(i=>(i
 const prof=()=>{try{return JSON.parse(localStorage.getItem('mgmt_profile')||'{}');}catch(e){return{};}};
 function sFilter(items,q,fields){if(!q)return items;const s=q.toLowerCase();return items.filter(it=>fields.some(f=>{const v=typeof f==='function'?f(it):it[f];return String(v||'').toLowerCase().includes(s);}));}
 function searchBox(ph){return '<div class="search-bar"><input class="inp" placeholder="'+ph+'" value="'+e(SEARCH)+'" oninput="SEARCH=this.value;render()"></div>';}
+function showTTK(ev,k){var t=$('tt');t.innerHTML=_TTMAP[k]||'';t.style.display='block';posTT(ev);}
+function posTT(ev){var t=$('tt');var x=ev.clientX+14,y=ev.clientY-60;if(x+200>window.innerWidth)x=ev.clientX-214;if(y<4)y=ev.clientY+12;t.style.left=x+'px';t.style.top=y+'px';}
+function hideTT(){var t=$('tt');if(t)t.style.display='none';}
 
 function getUrl(){return localStorage.getItem('mgmt_url')||'https://script.google.com/macros/s/AKfycbx7XZIuDehegQ55hGRBLEmdFtyidiAuX_6UqBni0SGw99CmT719o5KXW21IuZinEt8bKA/exec';}
 function autoColor(){var cid=Number($('fcl')&&$('fcl').value||0);var c=gc(cid);if(c&&c.color){FC=c.color;document.querySelectorAll('.cs').forEach(function(x){x.classList.toggle('sel',x.style.background===c.color||x.style.backgroundColor===c.color);});}}
@@ -876,8 +883,14 @@ function vInvoices(){
   html('<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px"><div><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Faktury</h1><p style="color:#475569;font-size:14px;margin-top:3px">'+fmtM(paidTotal)+' zaplaceno'+(isFiltered?' · <span style=\"color:#f59e0b\">Filtrováno: '+invs.length+' faktur</span>':'')+'</p></div><div style="display:flex;gap:10px;align-items:center">'+searchBox('Hledat fakturu...')+'<button class="btn bp" onclick="openIM()">+ Nová faktura</button><button class="btn bg btn-sm" onclick="expInvoices()" title="Export CSV">⬇</button></div></div>'+filterBar+'<div style="display:flex;flex-direction:column;gap:12px">'+(cards||'<div style="text-align:center;padding:60px 0;color:#475569"><div style="font-size:36px;margin-bottom:10px">◻</div><div style="font-size:16px;font-weight:700">Žádné faktury</div></div>')+'</div>');
 }
 
-function vReports(){
-  var yr=new Date().getFullYear();var yrS=String(yr);
+function vReports(selYr){
+  var allYrs=[];
+  DB.invoices.forEach(function(x){var y=(x.issued||'').slice(0,4);if(y.length===4&&allYrs.indexOf(y)<0)allYrs.push(y);});
+  DB.entries.forEach(function(x){var y=(x.date||'').slice(0,4);if(y.length===4&&allYrs.indexOf(y)<0)allYrs.push(y);});
+  DB.expenses.forEach(function(x){var y=(x.date||'').slice(0,4);if(y.length===4&&allYrs.indexOf(y)<0)allYrs.push(y);});
+  allYrs.sort().reverse();
+  if(!allYrs.length)allYrs=[String(new Date().getFullYear())];
+  var yrS=String(selYr||allYrs[0]);var yr=Number(yrS);
   var yrInvs=DB.invoices.filter(function(i){return(i.issued||'').startsWith(yrS);});
   var yrPaid=yrInvs.filter(function(i){return i.status==='paid';});
   var yrEnts=DB.entries.filter(function(x){return(x.date||'').startsWith(yrS);});
@@ -885,18 +898,69 @@ function vReports(){
   var tr=yrPaid.reduce(function(s,i){return s+(i.amount||0);},0);
   var tt=yrEnts.reduce(function(s,x){return s+(x.duration||0);},0);
   var te=yrExps.reduce(function(s,x){return s+(x.amount||0);},0);
-  var ar=tt>0?Math.round(tr/(tt/3600)):0;
-  var curM=new Date().getMonth();
-  var mon=[];for(var i=0;i<=curM;i++){var k=yrS+'-'+String(i+1).padStart(2,'0');var label=new Date(yr,i,1).toLocaleDateString('cs-CZ',{month:'short'});var inv2=DB.invoices.filter(function(x){return(x.issued||'').startsWith(k);});mon.push({label:label,inv:inv2.reduce(function(s,x){return s+(x.amount||0);},0),paid:inv2.filter(function(x){return x.status==='paid';}).reduce(function(s,x){return s+(x.amount||0);},0)});}
+  var np=tr-te;var ar=tt>0?Math.round(tr/(tt/3600)):0;
+  _TTMAP={};
+  var curM=yr===new Date().getFullYear()?new Date().getMonth():11;
+  var mon=[];
+  for(var mi=0;mi<=curM;mi++){
+    (function(i){
+      var k=yrS+'-'+String(i+1).padStart(2,'0');
+      var label=new Date(yr,i,1).toLocaleDateString('cs-CZ',{month:'short'});
+      var inv2=DB.invoices.filter(function(x){return(x.issued||'').startsWith(k);});
+      var mInv=inv2.reduce(function(s,x){return s+(x.amount||0);},0);
+      var mPaid=inv2.filter(function(x){return x.status==='paid';}).reduce(function(s,x){return s+(x.amount||0);},0);
+      mon.push({label:label,inv:mInv,paid:mPaid});
+    })(mi);
+  }
   var maxV=Math.max.apply(null,mon.map(function(m){return m.inv;}).concat([1]));
-  var bars=mon.map(function(m){return '<div class="bcol"><div class="binn" style="height:'+Math.max((m.inv/maxV)*130,m.inv>0?4:0)+'px"><div class="bfil" style="height:'+(m.inv>0?Math.round((m.paid/m.inv)*100):0)+'%"></div><span class="blab">'+m.label+'</span></div></div>';}).join('');
+  var bars=mon.map(function(m,i){
+    var tk='mr'+i;
+    _TTMAP[tk]='<div style="font-weight:700;margin-bottom:6px">'+e(m.label)+'</div><div style="color:#94a3b8;font-size:11px">Fakturováno</div><div style="font-weight:700;margin-bottom:4px">'+fmtM(m.inv)+'</div><div style="color:#94a3b8;font-size:11px">Zaplaceno</div><div style="color:#f59e0b;font-weight:700">'+fmtM(m.paid)+'</div>';
+    return '<div class="bcol" onmouseenter="showTTK(event,\''+tk+'\')" onmousemove="posTT(event)" onmouseleave="hideTT()"><div class="binn" style="height:'+Math.max((m.inv/maxV)*130,m.inv>0?4:0)+'px"><div class="bfil" style="height:'+(m.inv>0?Math.round((m.paid/m.inv)*100):0)+'%"></div><span class="blab">'+m.label+'</span></div></div>';
+  }).join('');
   var rbc=DB.clients.map(function(c){return{name:c.company||c.name,v:DB.orders.filter(function(o){return Number(o.clientId)===c.id;}).reduce(function(s,o){return s+(o.price||0);},0),color:c.color||'#f59e0b'};}).filter(function(x){return x.v>0;}).sort(function(a,b){return b.v-a.v;});
   var maxC=Math.max.apply(null,rbc.map(function(c){return c.v;}).concat([1]));
-  var cbars=rbc.slice(0,6).map(function(c){return '<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><div style="display:flex;align-items:center;gap:7px"><span class="dot" style="background:'+e(c.color)+'"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">'+e(c.name)+'</span></div><span class="mono" style="color:#f59e0b;font-weight:700;flex-shrink:0">'+fmtM(c.v)+'</span></div><div class="pb" style="height:5px"><div class="pf" style="width:'+(c.v/maxC)*100+'%;background:'+e(c.color)+'"></div></div></div>';}).join('');
+  var cbars=rbc.slice(0,6).map(function(c,i){
+    var tk='cl'+i;
+    _TTMAP[tk]='<div style="display:flex;align-items:center;gap:7px;font-weight:700;margin-bottom:6px"><span class="dot" style="background:'+e(c.color)+'"></span>'+e(c.name)+'</div><div style="color:#94a3b8;font-size:11px">Hodnota zakázek</div><div style="color:'+e(c.color)+';font-weight:700">'+fmtM(c.v)+'</div>';
+    return '<div style="margin-bottom:10px" onmouseenter="showTTK(event,\''+tk+'\')" onmousemove="posTT(event)" onmouseleave="hideTT()"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><div style="display:flex;align-items:center;gap:7px"><span class="dot" style="background:'+e(c.color)+'"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">'+e(c.name)+'</span></div><span class="mono" style="color:#f59e0b;font-weight:700;flex-shrink:0">'+fmtM(c.v)+'</span></div><div class="pb" style="height:5px"><div class="pf" style="width:'+(c.v/maxC)*100+'%;background:'+e(c.color)+'"></div></div></div>';
+  }).join('');
   var eCats={};yrExps.forEach(function(x){eCats[x.category]=(eCats[x.category]||0)+(x.amount||0);});
   var eCatH=Object.entries(eCats).sort(function(a,b){return b[1]-a[1];}).map(function(p){return '<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px"><span style="color:#94a3b8">'+e(p[0])+'</span><span class="mono" style="color:#ef4444;font-weight:700">'+fmtM(p[1])+'</span></div>';}).join('');
-  var pipeData=[{label:'Aktivn\u00ed',color:'#f59e0b',orders:DB.orders.filter(function(o){return o.status==='active';})},{label:'Dokon\u010den\u00e9',color:'#10b981',orders:DB.orders.filter(function(o){return o.status==='completed';})},{label:'Archivovan\u00e9',color:'#475569',orders:DB.orders.filter(function(o){return o.status==='archived';})}];var pipe=pipeData.map(function(p,i){return '<div style="flex:1;min-width:100px;padding:0 20px'+(i<pipeData.length-1?';border-right:1px solid #1a1f2e':'')+'"><div style="font-size:10px;font-weight:700;color:'+p.color+';text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">'+p.label+'</div><div class="mono" style="font-size:28px;font-weight:800;color:'+p.color+'">'+p.orders.length+'</div><div class="mono" style="font-size:12px;color:#64748b;font-weight:600;margin-top:3px">'+fmtM(p.orders.reduce(function(s,o){return s+(o.price||0);},0))+'</div></div>';}).join('');
-  html('<div style="margin-bottom:28px"><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Reporty '+yrS+'</h1></div><div class="g4" style="margin-bottom:22px"><div class="sc"><div class="mono" style="font-size:20px;font-weight:800;color:#f59e0b;margin-bottom:4px">'+(ar?fmtM(ar):'—')+'</div><div style="font-size:12px;color:#64748b">Průměrná hod. sazba</div></div><div class="sc"><div class="mono" style="font-size:20px;font-weight:800;color:#10b981;margin-bottom:4px">'+fmtM(tr)+'</div><div style="font-size:12px;color:#64748b">Celkové tržby '+yrS+'</div></div><div class="sc"><div class="mono" style="font-size:20px;font-weight:800;color:#ef4444;margin-bottom:4px">'+fmtM(te)+'</div><div style="font-size:12px;color:#64748b">Celkové náklady '+yrS+'</div></div><div class="sc"><div class="mono" style="font-size:20px;font-weight:800;color:#8b5cf6;margin-bottom:4px">'+fmtDur(tt)+'</div><div style="font-size:12px;color:#64748b">Odpracováno '+yrS+'</div></div></div><div class="g2" style="margin-bottom:18px"><div class="card"><div class="st">Tržby — '+yrS+'</div><div class="cbar">'+bars+'</div><div style="display:flex;gap:16px;font-size:11px;margin-top:6px"><span style="display:flex;align-items:center;gap:5px;color:#64748b"><span style="width:10px;height:10px;background:#1a1f2e;border-radius:2px;display:inline-block"></span> Fakturováno</span><span style="display:flex;align-items:center;gap:5px;color:#64748b"><span style="width:10px;height:10px;background:#f59e0b;border-radius:2px;display:inline-block"></span> Zaplaceno</span></div></div><div class="card"><div class="st">Tržby dle klienta</div>'+(cbars||'<div style="color:#475569;font-size:13px;text-align:center;padding:30px 0">Žádná data</div>')+'</div></div><div class="g2" style="margin-bottom:18px"><div class="card"><div class="st">Náklady dle kategorie</div>'+(eCatH||'<div style="color:#475569;font-size:13px;text-align:center;padding:30px 0">Žádné náklady</div>')+'</div><div class="card"><div class="st">Ziskovost zakázek</div>'+(DB.orders.filter(function(o){return o.price>0;}).slice(0,6).map(function(o){var ex2=expSum(o.id);var pr=o.price-ex2;var pct=o.price>0?Math.round((pr/o.price)*100):0;return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:12px"><span class="dot" style="background:'+e(o.color)+'"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(o.name)+'</span><span class="mono" style="color:'+(pct>=0?'#10b981':'#ef4444')+';font-weight:700">'+pct+'%</span><span class="mono" style="font-weight:700">'+fmtM(pr)+'</span></div>';}).join('')||'<div style="color:#475569;font-size:13px;text-align:center;padding:30px 0">Žádná data</div>')+'</div></div><div class="card"><div class="st">Pipeline zakázek</div><div style="display:flex;gap:0;overflow-x:auto">'+pipe+'</div></div>');
+  var profOrds=DB.orders.filter(function(o){return o.price>0;}).map(function(o){var ex2=expSum(o.id);var pr=o.price-ex2;var pct=Math.round((pr/o.price)*100);return{o:o,pr:pr,pct:pct};}).sort(function(a,b){return b.pct-a.pct;}).slice(0,6);
+  var profH=profOrds.map(function(x){return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:12px"><span class="dot" style="background:'+e(x.o.color)+'"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(x.o.name)+'</span><span class="mono" style="color:'+(x.pct>=0?'#10b981':'#ef4444')+';font-weight:700">'+x.pct+'%</span><span class="mono" style="font-weight:700">'+fmtM(x.pr)+'</span></div>';}).join('');
+  var tByOrd={};yrEnts.forEach(function(x){tByOrd[x.orderId]=(tByOrd[x.orderId]||0)+(x.duration||0);});
+  var tByOrdArr=Object.keys(tByOrd).map(function(oid){var o=go(Number(oid));return{name:o?o.name:'Neznámá zakázka',color:o&&o.color||'#8b5cf6',dur:tByOrd[oid]};}).sort(function(a,b){return b.dur-a.dur;});
+  var maxT=Math.max.apply(null,tByOrdArr.map(function(x){return x.dur;}).concat([1]));
+  var tbars=tByOrdArr.slice(0,6).map(function(x,i){
+    var tk='tm'+i;
+    _TTMAP[tk]='<div style="font-weight:700;margin-bottom:6px">'+e(x.name)+'</div><div style="color:#94a3b8;font-size:11px">Odpracováno</div><div style="color:#8b5cf6;font-weight:700">'+fmtDur(x.dur)+'</div>';
+    return '<div style="margin-bottom:10px" onmouseenter="showTTK(event,\''+tk+'\')" onmousemove="posTT(event)" onmouseleave="hideTT()"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><div style="display:flex;align-items:center;gap:7px"><span class="dot" style="background:'+e(x.color)+'"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">'+e(x.name)+'</span></div><span class="mono" style="color:#8b5cf6;font-weight:700;flex-shrink:0">'+fmtDur(x.dur)+'</span></div><div class="pb" style="height:5px"><div class="pf" style="width:'+(x.dur/maxT)*100+'%;background:'+e(x.color)+'"></div></div></div>';
+  }).join('');
+  var pipeData=[{label:'Aktivní',color:'#f59e0b',orders:DB.orders.filter(function(o){return o.status==='active';})},{label:'Dokončené',color:'#10b981',orders:DB.orders.filter(function(o){return o.status==='completed';})},{label:'Archivované',color:'#475569',orders:DB.orders.filter(function(o){return o.status==='archived';})}];
+  var pipe=pipeData.map(function(p,i){return '<div style="flex:1;min-width:100px;padding:0 20px'+(i<pipeData.length-1?';border-right:1px solid #1a1f2e':'')+'"><div style="font-size:10px;font-weight:700;color:'+p.color+';text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">'+p.label+'</div><div class="mono" style="font-size:28px;font-weight:800;color:'+p.color+'">'+p.orders.length+'</div><div class="mono" style="font-size:12px;color:#64748b;font-weight:600;margin-top:3px">'+fmtM(p.orders.reduce(function(s,o){return s+(o.price||0);},0))+'</div></div>';}).join('');
+  var yrSel='<select style="background:#13151f;border:1px solid #1a1f2e;color:#e2e8f0;border-radius:8px;padding:6px 12px;font-size:14px;font-weight:700;cursor:pointer" onchange="vReports(this.value)">'+allYrs.map(function(y){return'<option value="'+y+'"'+(y===yrS?' selected':'')+'>'+y+'</option>';}).join('')+'</select>';
+  html('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px"><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Reporty</h1>'+yrSel+'</div>'
+    +'<div class="g5" style="margin-bottom:22px">'
+    +'<div class="sc"><div class="mono" style="font-size:20px;font-weight:800;color:#f59e0b;margin-bottom:4px">'+(ar?fmtM(ar):'—')+'</div><div style="font-size:12px;color:#64748b">Prům. hod. sazba</div></div>'
+    +'<div class="sc"><div class="mono" style="font-size:20px;font-weight:800;color:#10b981;margin-bottom:4px">'+fmtM(tr)+'</div><div style="font-size:12px;color:#64748b">Celkové tržby</div></div>'
+    +'<div class="sc"><div class="mono" style="font-size:20px;font-weight:800;color:#ef4444;margin-bottom:4px">'+fmtM(te)+'</div><div style="font-size:12px;color:#64748b">Celkové náklady</div></div>'
+    +'<div class="sc"><div class="mono" style="font-size:20px;font-weight:800;color:'+(np>=0?'#10b981':'#ef4444')+';margin-bottom:4px">'+fmtM(np)+'</div><div style="font-size:12px;color:#64748b">Čistý zisk</div></div>'
+    +'<div class="sc"><div class="mono" style="font-size:20px;font-weight:800;color:#8b5cf6;margin-bottom:4px">'+fmtDur(tt)+'</div><div style="font-size:12px;color:#64748b">Odpracováno</div></div>'
+    +'</div>'
+    +'<div class="g2" style="margin-bottom:18px">'
+    +'<div class="card"><div class="st">Tržby — '+yrS+'</div><div class="cbar">'+bars+'</div><div style="display:flex;gap:16px;font-size:11px;margin-top:6px"><span style="display:flex;align-items:center;gap:5px;color:#64748b"><span style="width:10px;height:10px;background:#1a1f2e;border-radius:2px;display:inline-block"></span> Fakturováno</span><span style="display:flex;align-items:center;gap:5px;color:#64748b"><span style="width:10px;height:10px;background:#f59e0b;border-radius:2px;display:inline-block"></span> Zaplaceno</span></div></div>'
+    +'<div class="card"><div class="st">Tržby dle klienta</div>'+(cbars||'<div style="color:#475569;font-size:13px;text-align:center;padding:30px 0">Žádná data</div>')+'</div>'
+    +'</div>'
+    +'<div class="g2" style="margin-bottom:18px">'
+    +'<div class="card"><div class="st">Náklady dle kategorie</div>'+(eCatH||'<div style="color:#475569;font-size:13px;text-align:center;padding:30px 0">Žádné náklady</div>')+'</div>'
+    +'<div class="card"><div class="st">Ziskovost zakázek</div>'+(profH||'<div style="color:#475569;font-size:13px;text-align:center;padding:30px 0">Žádná data</div>')+'</div>'
+    +'</div>'
+    +'<div class="g2" style="margin-bottom:18px">'
+    +'<div class="card"><div class="st">Čas dle zakázky — '+yrS+'</div>'+(tbars||'<div style="color:#475569;font-size:13px;text-align:center;padding:30px 0">Žádné záznamy</div>')+'</div>'
+    +'<div class="card"><div class="st">Pipeline zakázek</div><div style="display:flex;gap:0;overflow-x:auto">'+pipe+'</div></div>'
+    +'</div>'
+  );
 }
 
 function vSettings(){
