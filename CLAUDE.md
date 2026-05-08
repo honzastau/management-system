@@ -1,4 +1,4 @@
-# Management System — Claude kontext
+# Management System
 
 ## Projekt
 Osobní management systém pro správu klientů, zakázek, faktur, měření času a výdajů.
