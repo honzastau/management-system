@@ -736,7 +736,10 @@ function vOrderDetail(id){
     return '<div style="background:#13151f;border-radius:10px;padding:12px;margin-bottom:8px;position:relative">'
       +'<div style="font-size:12px;color:#475569;margin-bottom:4px">'+fmtD(n.created)+'</div>'
       +'<div style="font-size:13px;color:#e2e8f0;line-height:1.6;white-space:pre-wrap">'+e(n.text)+'</div>'
-      +'<button class="btn bd btn-sm" style="position:absolute;top:8px;right:8px;padding:2px 7px;font-size:11px" onclick="delNote('+n.id+','+o.id+')">✕</button>'
+      +'<div style="position:absolute;top:8px;right:8px;display:flex;gap:4px">'
+      +'<button class="btn bg btn-sm" style="padding:2px 7px;font-size:11px" onclick="openEditNoteM('+n.id+','+o.id+')" title="Upravit">✎</button>'
+      +'<button class="btn bd btn-sm" style="padding:2px 7px;font-size:11px" onclick="delNote('+n.id+','+o.id+')">✕</button>'
+      +'</div>'
       +'</div>';
   }).join('');
   var ents=DB.entries.filter(function(x){return x.orderId===o.id;}).sort(function(a,b){return b.id-a.id;});
@@ -1063,6 +1066,11 @@ function openNoteM(oid){
   openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">Nová poznámka</div><div class="fr"><label class="lbl" for="ntxt">Text poznámky</label><textarea class="inp" id="ntxt" rows="4" style="resize:vertical" placeholder="Vaše poznámka..."></textarea></div><div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="saveNote('+oid+')">Uložit</button></div>');
 }
 async function saveNote(oid){var txt=$('ntxt').value.trim();if(!txt)return toast('Zadej text poznámky','error');var data={orderId:oid,text:txt,created:today()};closeModal();await mut('create','notes',{data:data});toast('Poznámka přidána','success');vOrderDetail(oid);}
+function openEditNoteM(id,oid){
+  var n=DB.notes.find(function(x){return x.id===id;});if(!n)return;
+  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">Upravit poznámku</div><div class="fr"><label class="lbl" for="ntxt">Text poznámky</label><textarea class="inp" id="ntxt" rows="4" style="resize:vertical">'+e(n.text||'')+'</textarea></div><div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="saveEditNote('+id+','+oid+')">Uložit</button></div>');
+}
+async function saveEditNote(id,oid){var txt=$('ntxt').value.trim();if(!txt)return toast('Zadej text poznámky','error');var n=DB.notes.find(function(x){return x.id===id;});if(!n)return;closeModal();await mut('update','notes',{id:id,data:Object.assign({},n,{text:txt})});toast('Poznámka upravena','success');vOrderDetail(oid);}
 
 function editInv(id){
   _EDIT_INV=DB.invoices.find(function(x){return Number(x.id)===Number(id);})||null;
