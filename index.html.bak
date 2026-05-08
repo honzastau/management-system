@@ -203,7 +203,7 @@ function _pd(d){
   var s=String(d);if(s.length>10)s=s.slice(0,10);
   var dt=new Date(s+'T12:00:00');return isNaN(dt.getTime())?null:dt;
 }
-const fmtD=function(d){var dt=_pd(d);return dt?dt.toLocaleDateString('cs-CZ'):'—';};
+const fmtD=function(d){var dt=_pd(d);return dt?dt.toLocaleDateString('cs-CZ'):'\u2014';};
 function normDate(d){
   if(!d)return'';var dt=_pd(d);if(!dt)return typeof d==='string'?d.slice(0,10):'';
   return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
@@ -342,7 +342,7 @@ async function stopTimer(){
 function exportCSV(data,cols,filename){
   var header=cols.map(function(c){return c.label;}).join(';');
   var rows=data.map(function(row){return cols.map(function(c){var v=typeof c.fn==='function'?c.fn(row):row[c.key];v=String(v!=null?v:'').replace(/"/g,'""');return '"'+v+'"';}).join(';');}).join('\n');
-  var blob=new Blob(['﻿'+header+'\n'+rows],{type:'text/csv;charset=utf-8'});
+  var blob=new Blob(['\ufeff'+header+'\n'+rows],{type:'text/csv;charset=utf-8'});
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();
 }
 
@@ -524,30 +524,30 @@ function vOrders(){
     var oinvsPaid=!o.deadline?DB.invoices.filter(function(iv){return iv.status==='paid'&&(Number(iv.orderId)===o.id||(Array.isArray(iv.orderIds)&&iv.orderIds.map(Number).indexOf(o.id)>-1));}).reduce(function(s,iv){return s+(iv.amount||0);},0):0;
     var bc=isCompleted?'#10b981':e(o.color);
     var onTime=o.delivered&&o.deadline?o.delivered<=o.deadline:dl>=0;
-var dlBadge=isCompleted?'<span style="color:'+(onTime?'#10b981':'#f59e0b')+';font-weight:700">'+(onTime?'✓ V termínu':'✓ Po termínu')+'</span>':(!o.deadline?'<span style="color:#8b5cf6;font-weight:600">∞ Průběžná</span>':dl<0?'<span style="color:#f87171">⚠ Po termínu</span>':dl<14?'<span style="color:#fbbf24">'+dl+' dní</span>':'<span style="color:#64748b">'+dl+' dní</span>');
+var dlBadge=isCompleted?'<span style="color:'+(onTime?'#10b981':'#f59e0b')+';font-weight:700">'+(onTime?'\u2713 V termínu':'\u2713 Po termínu')+'</span>':(!o.deadline?'<span style="color:#8b5cf6;font-weight:600">\u221e Průběžná</span>':dl<0?'<span style="color:#f87171">\u26a0 Po termínu</span>':dl<14?'<span style="color:#fbbf24">'+dl+' dní</span>':'<span style="color:#64748b">'+dl+' dní</span>');
     var actionBtns=isCompleted
-      ?'<button class="btn bg btn-sm" onclick="restO('+o.id+')" title="Znovu aktivovat">↩ Aktivovat</button>'
-      :(isR?'<span style="font-size:12px;color:#10b981;padding:5px 10px;font-weight:700">● Běží</span>':'<button class="btn bs btn-sm" onclick="startTimer('+o.id+')" title="Spustit čas">▶</button>');
+      ?'<button class="btn bg btn-sm" onclick="restO('+o.id+')" title="Znovu aktivovat">\u21a9 Aktivovat</button>'
+      :(isR?'<span style="font-size:12px;color:#10b981;padding:5px 10px;font-weight:700">\u25cf Běží</span>':'<button class="btn bs btn-sm" onclick="startTimer('+o.id+')" title="Spustit čas">\u25b6</button>');
     return '<div class="card" style="border-top:2px solid '+bc+'">'
       +'<div style="display:flex;justify-content:space-between;margin-bottom:8px">'
       +'<div style="flex:1;min-width:0;cursor:pointer" onclick="vOrderDetail('+o.id+')">'
-      +(isCompleted?'<span style="display:inline-block;font-size:11px;font-weight:700;color:#10b981;background:#062016;padding:2px 8px;border-radius:12px;border:1px solid #0d3a25;margin-bottom:4px">✓ Dokončeno</span><br>':'')
+      +(isCompleted?'<span style="display:inline-block;font-size:11px;font-weight:700;color:#10b981;background:#062016;padding:2px 8px;border-radius:12px;border:1px solid #0d3a25;margin-bottom:4px">\u2713 Dokončeno</span><br>':'')
       +'<div style="font-size:15px;font-weight:700;margin-bottom:2px">'+e(o.name)+'</div>'
       +'<div style="font-size:12px;color:#64748b">'+e((cl&&cl.company||cl&&cl.name||'—'))+'</div></div>'
       +'<div class="mono" style="font-size:15px;font-weight:800;color:'+(isCompleted?'#10b981':'#f59e0b')+';flex-shrink:0;margin-left:8px">'+fmtM(!o.deadline&&!isCompleted?oinvsPaid:o.price)+'</div></div>'
       +(o.description?'<div style="font-size:12px;color:#475569;margin-bottom:8px;line-height:1.5">'+e(o.description)+'</div>':'')
       +'<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:11px;color:#475569;margin-bottom:4px"><span>'+fmtD(o.deadline)+'</span>'+dlBadge+'</div>'
       +'<div class="pb"><div class="pf" style="width:'+pct+'%;background:'+(isCompleted?'#10b981':pct>85?'#ef4444':e(o.color))+'"></div></div></div>'
-      +'<div style="display:flex;gap:8px;margin-bottom:10px;font-size:11px;color:#64748b"><span style="color:#8b5cf6">⏱ '+fmtDur(ts(o.id))+'</span>'+(ex?'<span style="color:#ef4444">Ὃ0 '+fmtM(ex)+'</span>':'')+(ex?'<span style="color:'+(profit>=0?'#10b981':'#ef4444')+'">Ὄa '+fmtM(profit)+'</span>':'')+'</div>'
+      +'<div style="display:flex;gap:8px;margin-bottom:10px;font-size:11px;color:#64748b"><span style="color:#8b5cf6">\u23f1 '+fmtDur(ts(o.id))+'</span>'+(ex?'<span style="color:#ef4444">\u1f4b0 '+fmtM(ex)+'</span>':'')+(ex?'<span style="color:'+(profit>=0?'#10b981':'#ef4444')+'">\u1f4ca '+fmtM(profit)+'</span>':'')+'</div>'
       +'<div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid #1a1f2e">'
-      +'<button class="btn bg btn-sm" onclick="vOrderDetail('+o.id+')">Detail →</button>'
-      +'<div style="display:flex;gap:5px"><button class="btn bg btn-sm" onclick="openOM('+o.id+')" aria-label="Upravit zakázku" title="Upravit">✎</button>'+actionBtns+'<button class="btn bg btn-sm" onclick="archO('+o.id+')" aria-label="Archivovat zakázku" title="Archivovat">⊟</button><button class="btn bd btn-sm" onclick="delO('+o.id+')" aria-label="Smazat zakázku" title="Smazat">🗑</button></div></div></div>';
+      +'<button class="btn bg btn-sm" onclick="vOrderDetail('+o.id+')">Detail \u2192</button>'
+      +'<div style="display:flex;gap:5px"><button class="btn bg btn-sm" onclick="openOM('+o.id+')" aria-label="Upravit zak\u00e1zku" title="Upravit">\u270e</button>'+actionBtns+'<button class="btn bg btn-sm" onclick="archO('+o.id+')" aria-label="Archivovat zak\u00e1zku" title="Archivovat">\u229f</button><button class="btn bd btn-sm" onclick="delO('+o.id+')" aria-label="Smazat zak\u00e1zku" title="Smazat">\ud83d\uddd1</button></div></div></div>';
   }
   var aC=act.map(function(o){return orderCard(o,false);}).join('');
   var dC=done.map(function(o){return orderCard(o,true);}).join('');
-  html('<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px"><div><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Zakázky</h1><p style="color:#475569;font-size:14px;margin-top:3px">'+act.length+' aktivních'+( done.length?' · <span style=\"color:#10b981\">'+done.length+' dokončených</span>':'')+'</p></div><div style="display:flex;gap:10px;align-items:center">'+searchBox('Hledat zakázku...')+'<button class="btn bp" onclick="openOM()">+ Nová zakázka</button></div></div>'
-    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:15px;margin-bottom:28px">'+(aC||'<div style="grid-column:1/-1;text-align:center;padding:60px 0;color:#475569"><div style="font-size:36px;margin-bottom:10px">◈</div><div style="font-size:16px;font-weight:700">Žádné aktivní zakázky</div></div>')+'</div>'
-    +(dC?'<div style="margin-bottom:14px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="flex:1;height:1px;background:#1a1f2e"></div><span style="font-size:11px;font-weight:700;color:#10b981;text-transform:uppercase;letter-spacing:.1em;padding:0 12px;white-space:nowrap">✓ Dokončené zakázky</span><div style="flex:1;height:1px;background:#1a1f2e"></div></div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:15px">'+dC+'</div></div>':''));
+  html('<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px"><div><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Zakázky</h1><p style="color:#475569;font-size:14px;margin-top:3px">'+act.length+' aktivních'+( done.length?' \u00b7 <span style=\"color:#10b981\">'+done.length+' dokon\u010den\u00fdch</span>':'')+'</p></div><div style="display:flex;gap:10px;align-items:center">'+searchBox('Hledat zak\u00e1zku...')+'<button class="btn bp" onclick="openOM()">+ Nov\u00e1 zak\u00e1zka</button></div></div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:15px;margin-bottom:28px">'+(aC||'<div style="grid-column:1/-1;text-align:center;padding:60px 0;color:#475569"><div style="font-size:36px;margin-bottom:10px">\u25c8</div><div style="font-size:16px;font-weight:700">\u017d\u00e1dn\u00e9 aktivn\u00ed zak\u00e1zky</div></div>')+'</div>'
+    +(dC?'<div style="margin-bottom:14px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="flex:1;height:1px;background:#1a1f2e"></div><span style="font-size:11px;font-weight:700;color:#10b981;text-transform:uppercase;letter-spacing:.1em;padding:0 12px;white-space:nowrap">\u2713 Dokon\u010den\u00e9 zak\u00e1zky</span><div style="flex:1;height:1px;background:#1a1f2e"></div></div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:15px">'+dC+'</div></div>':''));
 }
 
 function getMilestones(o){if(!o.milestones)return[];if(Array.isArray(o.milestones))return o.milestones;try{return JSON.parse(o.milestones);}catch(e){return[];}}
