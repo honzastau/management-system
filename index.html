@@ -216,7 +216,7 @@ const ts=oid=>DB.entries.filter(x=>x.orderId===oid).reduce((s,x)=>s+(x.duration|
 const gc=id=>DB.clients.find(c=>c.id===Number(id));
 const go=id=>DB.orders.find(o=>o.id===Number(id));
 const expSum=oid=>DB.expenses.filter(x=>x.orderId===oid).reduce((s,x)=>s+(x.amount||0),0);
-const nin=()=>{const y=new Date().getFullYear();const n=DB.invoices.filter(i=>(i.number||'').includes(String(y))).length+1;return y+'-'+String(n).padStart(3,'0');};
+const nin=()=>{const y=new Date().getFullYear();const n=DB.invoices.filter(i=>String(i.number||'').includes(String(y))).length+1;return y+'-'+String(n).padStart(3,'0');};
 const prof=()=>{try{return JSON.parse(localStorage.getItem('mgmt_profile')||'{}');}catch(e){return{};}};
 function sFilter(items,q,fields){if(!q)return items;const s=q.toLowerCase();return items.filter(it=>fields.some(f=>{const v=typeof f==='function'?f(it):it[f];return String(v||'').toLowerCase().includes(s);}));}
 function searchBox(ph){return '<div class="search-bar"><input class="inp" placeholder="'+ph+'" value="'+e(SEARCH)+'" oninput="SEARCH=this.value;render()"></div>';}
