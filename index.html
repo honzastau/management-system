@@ -531,7 +531,7 @@ function vOrders(){
     var oInvsCard=o.deadline&&o.price>0?DB.invoices.filter(function(i){var ids=Array.isArray(i.orderIds)?i.orderIds.map(Number):[];return Number(i.orderId)===o.id||ids.indexOf(o.id)>=0;}):[];
     var invoicedCard=oInvsCard.reduce(function(s,i){return s+(i.amount||0);},0);
     var remainingCard=invoicedCard>0?o.price-invoicedCard:0;
-    var bc=isCompleted?'#059669':e(o.color);
+    var bc=e(o.color);
     var ms=getMilestones(o);var msDone=ms.filter(function(m){return m.done;}).length;
     var onTime=o.delivered&&o.deadline?o.delivered<=o.deadline:dl>=0;
     var dlBadge=isCompleted
@@ -543,7 +543,7 @@ function vOrders(){
     var actionBtns=isCompleted
       ?'<button class="btn bg btn-sm" onclick="restO('+o.id+')" title="Znovu aktivovat">↩</button>'
       :(isR?'<span style="font-size:11px;color:#059669;padding:3px 8px;font-weight:700;border:1px solid #86efac;border-radius:6px;background:#d1fae5">● Běží</span>':'<button class="btn bs btn-sm" onclick="startTimer('+o.id+')" title="Spustit čas">▶</button>');
-    return '<div class="card" style="padding:14px 20px;border-left:4px solid '+bc+';border-radius:0 var(--r-md) var(--r-md) 0">'
+    return '<div class="card" style="padding:14px 20px;border-left:4px solid '+bc+';border-radius:0 var(--r-md) var(--r-md) 0'+(isCompleted?';opacity:.55':'')+'">'
       +'<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">'
       +'<div style="flex:2;min-width:160px;cursor:pointer" onclick="vOrderDetail('+o.id+')">'
       +(isCompleted?'<span class="badge" style="background:#d1fae5;color:#059669;border:1px solid #86efac;margin-bottom:5px;display:inline-flex;font-size:11px;padding:2px 9px">✓ Dokončeno</span><br>':'')
@@ -617,7 +617,20 @@ function vOrders(){
   var dC=renderGrouped(done,true);
   html('<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px"><div><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Zakázky</h1><p style="color:var(--tx2);font-size:14px;margin-top:3px">'+act.length+' aktivních'+(done.length?' · <span style="color:#059669">'+done.length+' dokončených</span>':'')+'</p></div><div style="display:flex;gap:10px;align-items:center">'+searchBox('Hledat zakázku...')+'<button class="btn bp" onclick="openOM()">+ Nová zakázka</button></div></div>'
     +'<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:28px">'+(aC||'<div style="text-align:center;padding:60px 0;color:var(--tx3)"><div style="font-size:36px;margin-bottom:10px">◈</div><div style="font-size:16px;font-weight:700">Žádné aktivní zakázky</div></div>')+'</div>'
-    +(dC?'<div style="margin-bottom:14px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="flex:1;height:1px;background:var(--bd)"></div><span style="font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.1em;padding:0 12px;white-space:nowrap">✓ Dokončené zakázky</span><div style="flex:1;height:1px;background:var(--bd)"></div></div><div style="display:flex;flex-direction:column;gap:10px">'+dC+'</div></div>':''));
+    +(dC?'<div style="margin-bottom:14px">'
+      +'<div onclick="toggleDone()" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;cursor:pointer;user-select:none">'
+      +'<div style="flex:1;height:1px;background:var(--bd)"></div>'
+      +'<span style="font-size:11px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.1em;padding:0 12px;white-space:nowrap;display:inline-flex;align-items:center;gap:7px">'
+      +'<span id="done-arr" style="display:inline-block;transition:transform .2s;font-size:9px">▶</span>'
+      +'✓ Dokončené zakázky ('+done.length+')</span>'
+      +'<div style="flex:1;height:1px;background:var(--bd)"></div></div>'
+      +'<div id="done-list" style="display:none;flex-direction:column;gap:10px">'+dC+'</div></div>':''));
+}
+function toggleDone(){
+  var l=$('done-list');var a=$('done-arr');if(!l)return;
+  var open=l.style.display==='none';
+  l.style.display=open?'flex':'none';
+  if(a)a.style.transform=open?'rotate(90deg)':'rotate(0deg)';
 }
 
 function getMilestones(o){if(!o.milestones)return[];if(Array.isArray(o.milestones))return o.milestones;try{return JSON.parse(o.milestones);}catch(e){return[];}}
