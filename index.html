@@ -196,6 +196,12 @@ const STAGES=['Poptávka','Nabídka','Projekce','Realizace','Předání','Faktur
 const EXP_CATS=['Materiál','Práce','Subdodávka','Doprava','Nářadí','Režie','Ostatní'];
 
 const $=id=>document.getElementById(id);
+// Bezpečný localStorage — v sandboxu (data: URL / preview) je Storage zakázaný, fallback na paměť
+var _mem={};
+var LS={
+  getItem:function(k){try{return localStorage.getItem(k);}catch(e){return k in _mem?_mem[k]:null;}},
+  setItem:function(k,v){try{localStorage.setItem(k,v);}catch(e){_mem[k]=String(v);}}
+};
 const fmtM=(n,c)=>new Intl.NumberFormat('cs-CZ',{style:'currency',currency:c||'CZK',minimumFractionDigits:0}).format(n||0);
 function _pd(d){
   if(!d)return null;
@@ -217,17 +223,17 @@ const gc=id=>DB.clients.find(c=>c.id===Number(id));
 const go=id=>DB.orders.find(o=>o.id===Number(id));
 const expSum=oid=>DB.expenses.filter(x=>x.orderId===oid).reduce((s,x)=>s+(x.amount||0),0);
 const nin=()=>{const y=new Date().getFullYear();const n=DB.invoices.filter(i=>String(i.number||'').includes(String(y))).length+1;return y+'-'+String(n).padStart(3,'0');};
-const prof=()=>{try{return JSON.parse(localStorage.getItem('mgmt_profile')||'{}');}catch(e){return{};}};
+const prof=()=>{try{return JSON.parse(LS.getItem('mgmt_profile')||'{}');}catch(e){return{};}};
 function sFilter(items,q,fields){if(!q)return items;const s=q.toLowerCase();return items.filter(it=>fields.some(f=>{const v=typeof f==='function'?f(it):it[f];return String(v||'').toLowerCase().includes(s);}));}
 function searchBox(ph){return '<div class="search-bar"><input class="inp" placeholder="'+ph+'" value="'+e(SEARCH)+'" oninput="SEARCH=this.value;render()"></div>';}
 function showTTK(ev,k){var t=$('tt');t.innerHTML=_TTMAP[k]||'';t.style.display='block';posTT(ev);}
 function posTT(ev){var t=$('tt');var x=ev.clientX+14,y=ev.clientY-60;if(x+200>window.innerWidth)x=ev.clientX-214;if(y<4)y=ev.clientY+12;t.style.left=x+'px';t.style.top=y+'px';}
 function hideTT(){var t=$('tt');if(t)t.style.display='none';}
 
-function getUrl(){return localStorage.getItem('mgmt_url')||'https://script.google.com/macros/s/AKfycbx7XZIuDehegQ55hGRBLEmdFtyidiAuX_6UqBni0SGw99CmT719o5KXW21IuZinEt8bKA/exec';}
+function getUrl(){return LS.getItem('mgmt_url')||'https://script.google.com/macros/s/AKfycbx7XZIuDehegQ55hGRBLEmdFtyidiAuX_6UqBni0SGw99CmT719o5KXW21IuZinEt8bKA/exec';}
 function autoColor(){var cid=Number($('fcl')&&$('fcl').value||0);var c=gc(cid);if(c&&c.color){FC=c.color;document.querySelectorAll('.cs').forEach(function(x){x.classList.toggle('sel',x.style.background===c.color||x.style.backgroundColor===c.color);});}}
 function dueIn(days){var d=new Date();d.setDate(d.getDate()+days);return d.toISOString().slice(0,10);}
-function saveUrl(){var u=$('setup-url').value.trim();if(!u)return;localStorage.setItem('mgmt_url',u);boot();}
+function saveUrl(){var u=$('setup-url').value.trim();if(!u)return;LS.setItem('mgmt_url',u);boot();}
 document.addEventListener('DOMContentLoaded',function(){var bm=document.getElementById('boot-msg');if(bm)bm.style.display='none';try{if(!getUrl()){$('setup').style.display='flex';}else boot();}catch(err){document.body.innerHTML='<div style="color:var(--er);padding:40px;font-family:sans-serif">JS Error: '+err.message+'<br><small>'+err.stack+'</small></div>';}});
 function boot(){$('setup').style.display='none';$('app').style.display='flex';loadAll();}
 
@@ -1072,7 +1078,7 @@ function vSettings(){
   html('<div style="margin-bottom:28px"><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Nastavení firmy</h1><p style="color:#475569;font-size:14px;margin-top:4px">Údaje se zobrazí na fakturách</p></div><div class="card" style="max-width:640px"><div class="fr"><label class="lbl">Název firmy / Jméno</label><input class="inp" id="pName" value="'+e(p.companyName||'')+'"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">IČO</label><input class="inp" id="pIco" value="'+e(p.ico||'')+'"></div><div class="fr" style="margin:0"><label class="lbl">DIČ</label><input class="inp" id="pDic" value="'+e(p.dic||'')+'"></div></div><div class="fr"><label class="lbl">Adresa</label><input class="inp" id="pAddr" value="'+e(p.address||'')+'"></div><div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">Město</label><input class="inp" id="pCity" value="'+e(p.city||'')+'"></div><div class="fr" style="margin:0"><label class="lbl">PSČ</label><input class="inp" id="pZip" value="'+e(p.zip||'')+'"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">Email</label><input class="inp" id="pEmail" value="'+e(p.email||'')+'"></div><div class="fr" style="margin:0"><label class="lbl">Telefon</label><input class="inp" id="pPhone" value="'+e(p.phone||'')+'"></div></div><div class="fr"><label class="lbl">Číslo účtu</label><input class="inp" id="pBank" value="'+e(p.bankAccount||'')+'" placeholder="123456789/0100"></div><div class="fr"><label class="lbl">IBAN (pro QR platbu)</label><input class="inp" id="pIban" value="'+e(p.iban||'')+'" placeholder="CZ65 0800 0000 0012 3456 7899"></div><div class="mfooter" style="margin-top:24px"><button class="btn bp" onclick="saveProfile()">💾 Uložit nastavení</button></div></div>');
 }
 
-function saveProfile(){var data={companyName:$('pName').value,ico:$('pIco').value,dic:$('pDic').value,address:$('pAddr').value,city:$('pCity').value,zip:$('pZip').value,email:$('pEmail').value,phone:$('pPhone').value,bankAccount:$('pBank').value,iban:$('pIban').value.replace(/\s/g,'')};localStorage.setItem('mgmt_profile',JSON.stringify(data));toast('Nastavení uloženo','success');}
+function saveProfile(){var data={companyName:$('pName').value,ico:$('pIco').value,dic:$('pDic').value,address:$('pAddr').value,city:$('pCity').value,zip:$('pZip').value,email:$('pEmail').value,phone:$('pPhone').value,bankAccount:$('pBank').value,iban:$('pIban').value.replace(/\s/g,'')};LS.setItem('mgmt_profile',JSON.stringify(data));toast('Nastavení uloženo','success');}
 
 // ═══ ACTIONS ═════════════════════════════════════════════════
 async function archO(id){confirmAction('Archivovat tuto zakázku?','Archivovat',async function(){var o=go(id);if(o){await mut('update','orders',{id:id,data:Object.assign({},o,{status:'archived'})});toast('Zakázka archivována','success');sv('orders');}});}
