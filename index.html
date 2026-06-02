@@ -570,8 +570,45 @@ function vOrders(){
       +'</div>'
       +'</div>';
   }
-  var aC=act.map(function(o){return orderCard(o,false);}).join('');
-  var dC=done.map(function(o){return orderCard(o,true);}).join('');
+  // Historické pořadí klientů: počet všech zakázek (napříč statusy) desc, pak hodnota desc, pak jméno
+  var rank={};
+  DB.orders.forEach(function(o){var k=o.clientId||0;if(!rank[k])rank[k]={count:0,value:0};rank[k].count++;rank[k].value+=(o.price||0);});
+  function clientName(cid){var c=gc(cid);return c?(c.company||c.name||'—'):'Bez klienta';}
+  function clientOrderKeys(list){
+    var map={};
+    list.forEach(function(o){var k=o.clientId||0;if(!map[k])map[k]=[];map[k].push(o);});
+    var keys=Object.keys(map).map(Number);
+    keys.sort(function(a,b){
+      if(a===0)return 1;if(b===0)return -1; // "Bez klienta" vždy poslední
+      var ra=rank[a]||{count:0,value:0},rb=rank[b]||{count:0,value:0};
+      if(rb.count!==ra.count)return rb.count-ra.count;
+      if(rb.value!==ra.value)return rb.value-ra.value;
+      return clientName(a).localeCompare(clientName(b),'cs');
+    });
+    return{map:map,keys:keys};
+  }
+  function clientBlock(cid,orders,isCompleted){
+    var cl=gc(cid);var col=cl?e(cl.color):'#64748b';var nm=e(clientName(cid));
+    orders.sort(function(a,b){
+      var da=a.deadline,db=b.deadline;
+      if(!da&&!db)return 0;if(!da)return 1;if(!db)return -1; // průběžné na konec
+      return new Date(da)-new Date(db);
+    });
+    var cards=orders.map(function(o){return orderCard(o,isCompleted);}).join('');
+    return '<div style="border-left:3px solid '+col+';border-radius:0 var(--r-md) var(--r-md) 0;padding:0 0 0 14px;margin-bottom:18px">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+      +'<span style="width:9px;height:9px;border-radius:50%;background:'+col+';flex-shrink:0"></span>'
+      +'<span style="font-size:13px;font-weight:700;color:var(--tx);letter-spacing:-.01em">'+nm+'</span>'
+      +'</div>'
+      +'<div style="display:flex;flex-direction:column;gap:10px">'+cards+'</div>'
+      +'</div>';
+  }
+  function renderGrouped(list,isCompleted){
+    var g=clientOrderKeys(list);
+    return g.keys.map(function(k){return clientBlock(k,g.map[k],isCompleted);}).join('');
+  }
+  var aC=renderGrouped(act,false);
+  var dC=renderGrouped(done,true);
   html('<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px"><div><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Zakázky</h1><p style="color:var(--tx2);font-size:14px;margin-top:3px">'+act.length+' aktivních'+(done.length?' · <span style="color:#059669">'+done.length+' dokončených</span>':'')+'</p></div><div style="display:flex;gap:10px;align-items:center">'+searchBox('Hledat zakázku...')+'<button class="btn bp" onclick="openOM()">+ Nová zakázka</button></div></div>'
     +'<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:28px">'+(aC||'<div style="text-align:center;padding:60px 0;color:var(--tx3)"><div style="font-size:36px;margin-bottom:10px">◈</div><div style="font-size:16px;font-weight:700">Žádné aktivní zakázky</div></div>')+'</div>'
     +(dC?'<div style="margin-bottom:14px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="flex:1;height:1px;background:var(--bd)"></div><span style="font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.1em;padding:0 12px;white-space:nowrap">✓ Dokončené zakázky</span><div style="flex:1;height:1px;background:var(--bd)"></div></div><div style="display:flex;flex-direction:column;gap:10px">'+dC+'</div></div>':''));
