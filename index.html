@@ -488,6 +488,7 @@ function vDash(){
   var te=DB.expenses.reduce(function(s,x){return s+(x.amount||0);},0);
   var warn=pend.length?'<div style="display:flex;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:14px 18px;margin-bottom:20px;align-items:center;gap:14px"><span style="font-size:20px">⚠️</span><div><div style="font-weight:700;color:#d97706">'+pend.length+' nezaplacen'+(pend.length===1?'á faktura':pend.length<5?'é faktury':'ých faktur')+'</div><div style="font-size:12px;color:#92400e">'+fmtM(pend.reduce(function(s,i){return s+(i.amount||0);},0))+'</div></div><button class="btn bg btn-sm" style="margin-left:auto" onclick="sv(\'invoices\')">Zobrazit</button></div>':'';
   var ar=act.slice(0,5).map(function(o){var cl=gc(o.clientId);var dl=Math.ceil((new Date(o.deadline)-new Date())/86400000);
+    var delivOnTime=o.deadline?o.delivered<=o.deadline:true;
     var pct=o.deadline?Math.min(100,Math.max(0,(new Date()-new Date(o.created))/(new Date(o.deadline)-new Date(o.created))*100)):0;
     var priceEl;
     if(!o.deadline&&!isNoInv(o)){
@@ -497,7 +498,7 @@ function vDash(){
     }else{
       priceEl='<span class="mono" style="font-size:12px;color:var(--ac);flex-shrink:0">'+fmtM(o.price)+'</span>';
     }
-    return '<div style="display:flex;align-items:center;gap:11px;margin-bottom:14px;cursor:pointer" onclick="vOrderDetail('+o.id+')"><span class="dot" style="background:'+e(o.color)+'"></span><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(o.name)+'</div><div style="font-size:12px;color:#475569">'+e((cl&&cl.company||cl&&cl.name||'—'))+' · <span style="color:'+(o.status==='completed'?'#10b981':(dl<14?'#f87171':'#64748b'))+'">'+(o.status==='completed'?(dl>=0?'✓ Hotovo':'>Termínu'):(dl<0?'Po termínu!':dl+'d'))+'</span></div><div class="pb"><div class="pf" style="width:'+pct+'%;background:'+(pct>85?'#ef4444':e(o.color))+'"></div></div></div>'+priceEl+'</div>';}).join('');
+    return '<div style="display:flex;align-items:center;gap:11px;margin-bottom:14px;cursor:pointer" onclick="vOrderDetail('+o.id+')"><span class="dot" style="background:'+e(o.color)+'"></span><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(o.name)+'</div><div style="font-size:12px;color:#475569">'+e((cl&&cl.company||cl&&cl.name||'—'))+' · <span style="color:'+(o.status==='completed'?'#10b981':(o.delivered?(delivOnTime?'#10b981':'#d97706'):(dl<14?'#f87171':'#64748b')))+'">'+(o.status==='completed'?(dl>=0?'✓ Hotovo':'>Termínu'):(o.delivered?(delivOnTime?'✓ Odevzdáno':'⚠ Odevzdáno po term.'):(dl<0?'Po termínu!':dl+'d')))+'</span></div><div class="pb"><div class="pf" style="width:'+pct+'%;background:'+(pct>85?'#ef4444':e(o.color))+'"></div></div></div>'+priceEl+'</div>';}).join('');
   html('<div style="margin-bottom:28px"><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Přehled</h1><p style="color:#475569;font-size:14px;margin-top:4px">'+new Date().toLocaleDateString('cs-CZ',{weekday:'long',year:'numeric',month:'long',day:'numeric'})+'</p></div>'+
   '<div class="mpanel" style="margin-bottom:22px">'+
   '<div class="mc" onclick="sv(\'orders\')"><div class="lbl" style="margin-bottom:8px">Aktivní zakázky</div><div class="mono" style="font-size:26px;font-weight:800;color:var(--ac)">'+act.length+'</div></div>'+
@@ -542,9 +543,11 @@ function vOrders(){
     var bc=e(o.color);
     var ms=getMilestones(o);var msDone=ms.filter(function(m){return m.done;}).length;
     var onTime=o.delivered&&o.deadline?o.delivered<=o.deadline:dl>=0;
+    var delivOnTime=o.deadline?o.delivered<=o.deadline:true;
     var dlBadge=isCompleted
       ?'<span class="badge" style="background:'+(onTime?'#d1fae5':'#fff7ed')+';color:'+(onTime?'#059669':'#d97706')+';border:1px solid '+(onTime?'#86efac':'#fed7aa')+'">'+(onTime?'✓ V termínu':'✓ Po termínu')+'</span>'
       :(!o.deadline?'<span class="badge" style="background:#f3e8ff;color:#7c3aed;border:1px solid #ddd6fe">∞ Průběžná</span>'
+      :o.delivered?'<span class="badge" style="background:'+(delivOnTime?'#d1fae5':'#fff7ed')+';color:'+(delivOnTime?'#059669':'#d97706')+';border:1px solid '+(delivOnTime?'#86efac':'#fed7aa')+'">'+(delivOnTime?'✓ Odevzdáno v termínu':'⚠ Odevzdáno po termínu')+'</span>'
       :dl<0?'<span class="badge" style="background:var(--er-bg);color:var(--er);border:1px solid var(--bd-err)">⚠ Po termínu</span>'
       :dl<14?'<span class="badge" style="background:#fef3c7;color:#d97706;border:1px solid #fde68a">'+dl+' dní</span>'
       :'<span class="badge" style="background:var(--bg-in);color:var(--tx3);border:1px solid var(--bd)">'+dl+' dní</span>');
@@ -911,8 +914,8 @@ function vOrderDetail(id){
     +'<div style="flex:1;min-width:200px">'
     +'<h1 style="font-size:22px;font-weight:800">'+e(o.name)+'</h1>'
     +'<div style="font-size:13px;color:#64748b;margin-top:2px">'+e((cl&&cl.company||cl&&cl.name||'—'))
-    +' · <span style="color:'+(o.status==='completed'?'#10b981':(dl<0?'#f87171':dl<14?'#fbbf24':'#64748b'))
-    +'">'+(o.status==='completed'?((o.delivered&&o.deadline?o.delivered<=o.deadline:dl>=0)?'✓ Splněno v termínu':'✓ Splněno po termínu'):(!o.deadline?'∞ Průběžná zakázka':dl<0?'Po termínu!':dl+' dní do deadline'))
+    +' · <span style="color:'+(o.status==='completed'?'#10b981':(o.delivered?((o.deadline?o.delivered<=o.deadline:true)?'#10b981':'#d97706'):(dl<0?'#f87171':dl<14?'#fbbf24':'#64748b')))
+    +'">'+(o.status==='completed'?((o.delivered&&o.deadline?o.delivered<=o.deadline:dl>=0)?'✓ Splněno v termínu':'✓ Splněno po termínu'):(!o.deadline?'∞ Průběžná zakázka':o.delivered?((o.deadline?o.delivered<=o.deadline:true)?'✓ Odevzdáno v termínu':'⚠ Odevzdáno po termínu'):dl<0?'Po termínu!':dl+' dní do deadline'))
     +'</span></div></div>'
     +'<button class="btn bg" onclick="openOM('+o.id+')">✎ Upravit</button>'
     +(o.status==='completed'?'<button class="btn bg" onclick="restO('+o.id+')">↩ Aktivovat</button>':'<button class="btn bs" onclick="completeO('+o.id+')">✓ Dokončit</button>')+(o.status!=='archived'?'<button class="btn bg" onclick="deliverO('+o.id+')" style="'+(o.delivered?'color:#10b981;border-color:#10b98144':'')+'">&#128230; '+(o.delivered?'Odevzdáno '+fmtD(o.delivered):'Odevzdáno')+'</button>':'')
