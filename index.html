@@ -593,7 +593,6 @@ function vOrders(){
       +'<span style="font-size:12px;color:#7c3aed">⏱ '+fmtDur(ts(o.id))+'</span>'
       +(ex?'<span style="font-size:12px;color:var(--er)">↓ '+fmtM(ex)+'</span>':'')
       +(ex?'<span style="font-size:12px;color:'+(profit>=0?'#059669':'var(--er)')+'">≈ '+fmtM(profit)+'</span>':'')
-      +(ms.length?'<span style="font-size:11px;color:var(--tx3)">⊞ '+msDone+'/'+ms.length+' milníků</span>':'')
       +'</div>'
       +'<div style="display:flex;gap:5px;flex-shrink:0;flex-wrap:wrap">'
       +'<button class="btn bg btn-sm" onclick="vOrderDetail('+o.id+')">Detail</button>'
