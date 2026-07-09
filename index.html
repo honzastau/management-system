@@ -1051,7 +1051,7 @@ function vReports(selYr){
   yrReceivedInvs.forEach(function(inv){
     var oid=inv.orderId||(Array.isArray(inv.orderIds)&&inv.orderIds[0])||null;
     var o=oid?go(Number(oid)):null;
-    var c=o?gc(Number(o.clientId)):null;
+    var c=gc(inv.clientId)||(o?gc(Number(o.clientId)):null);
     var key=c?String(c.id):'none';
     if(!clientRev[key])clientRev[key]={name:c?(c.company||c.name):'Bez klienta',color:c?(c.color||'#f59e0b'):'#f59e0b',v:0};
     clientRev[key].v+=(inv.amount||0);
