@@ -1012,7 +1012,7 @@ function vReports(selYr){
   if(!allYrs.length)allYrs=[String(new Date().getFullYear())];
   var isAll=(String(selYr)==='all');
   var yrS=isAll?'all':String(selYr||allYrs[0]);var yr=Number(yrS);
-  var yrLbl=isAll?'Celá doba':yrS;
+  var yrLbl=isAll?'Od začátku':yrS;
   function inYr(ds){return isAll||String(ds||'').startsWith(yrS);}
   var yrInvs=DB.invoices.filter(function(i){return inYr(i.issued);});
   // Přijaté faktury = zaplacené dle data PLATBY (paidDate), ne dle vystavení
@@ -1128,7 +1128,7 @@ function vReports(selYr){
   }).join('<div style="width:1px;background:var(--bd);margin:0 4px"></div>');
   var pipe='<div style="height:8px;border-radius:4px;overflow:hidden;display:flex;gap:2px;margin-bottom:24px">'+stackBar+'</div>'
     +'<div style="display:flex;align-items:flex-start">'+pipeStats+'</div>';
-  var yrSel='<select style="background:var(--bg-in);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:6px 12px;font-size:14px;font-weight:700;cursor:pointer" onchange="vReports(this.value)">'+allYrs.map(function(y){return'<option value="'+y+'"'+(!isAll&&y===yrS?' selected':'')+'>'+y+'</option>';}).join('')+'<option value="all"'+(isAll?' selected':'')+'>Celá doba</option></select>';
+  var yrSel='<select style="background:var(--bg-in);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:6px 12px;font-size:14px;font-weight:700;cursor:pointer" onchange="vReports(this.value)">'+allYrs.map(function(y){return'<option value="'+y+'"'+(!isAll&&y===yrS?' selected':'')+'>'+y+'</option>';}).join('')+'<option value="all"'+(isAll?' selected':'')+'>Od začátku</option></select>';
   html('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px"><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Reporty</h1>'+yrSel+'</div>'
     +'<div class="g6" style="margin-bottom:22px">'
     +'<div class="sc"><div class="mono" style="font-size:20px;font-weight:800;color:var(--ac);margin-bottom:4px">'+(ar?fmtM(ar):'—')+'</div><div style="font-size:12px;color:#64748b">Prům. hod. sazba</div></div>'
