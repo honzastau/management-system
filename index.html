@@ -167,7 +167,7 @@ select.inp option{background:var(--bg-in)}
     <button class="ni" data-v="reports" onclick="nav(this)"><span class="ni-icon">◑</span>Reporty</button>
     <div class="nav-sep"></div>
     <button class="ni" data-v="settings" onclick="nav(this)"><span class="ni-icon">⚙</span>Nastavení</button>
-    <div class="nav-bot"><div>Celkový obrat</div><div class="mono" id="nav-rev" style="color:var(--ac);font-weight:800;font-size:14px">0 Kč</div></div>
+    <div class="nav-bot"><div id="nav-rev-lbl">Obrat letos</div><div class="mono" id="nav-rev" style="color:var(--ac);font-weight:800;font-size:14px">0 Kč</div></div>
   </nav>
   <div id="main">
     <div id="err-bar"><span id="err-msg"></span><button class="btn bg btn-sm" style="margin-left:auto" onclick="loadAll()">Zkusit znovu</button></div>
@@ -308,7 +308,11 @@ function sv(v){document.querySelectorAll('.ni').forEach(function(n){n.classList.
 function render(){
   var map={dashboard:vDash,clients:vClients,orders:vOrders,archive:vArchive,time:vTime,invoices:vInvoices,reports:vReports,settings:vSettings};
   if(map[curView])map[curView]();
-  $('nav-rev').textContent=fmtM(DB.orders.reduce(function(s,o){return s+(o.price||0);},0));
+  var yrS=String(new Date().getFullYear());
+  $('nav-rev-lbl').textContent='Obrat '+yrS;
+  var revInv=DB.invoices.filter(function(i){return i.status==='paid'&&String(normDate(i.paidDate)||normDate(i.issued)).startsWith(yrS);}).reduce(function(s,i){return s+(i.amount||0);},0);
+  var revCash=cashOrders(yrS).reduce(function(s,o){return s+(o.price||0);},0);
+  $('nav-rev').textContent=fmtM(revInv+revCash);
 }
 function html(h){$('content').innerHTML=h;}
 function badges(){
