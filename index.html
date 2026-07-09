@@ -1010,15 +1010,18 @@ function vReports(selYr){
   cashOrders().forEach(function(o){var y=String(normDate(o.paidDate)).slice(0,4);if(y.length===4&&allYrs.indexOf(y)<0)allYrs.push(y);});
   allYrs.sort().reverse();
   if(!allYrs.length)allYrs=[String(new Date().getFullYear())];
-  var yrS=String(selYr||allYrs[0]);var yr=Number(yrS);
-  var yrInvs=DB.invoices.filter(function(i){return(i.issued||'').startsWith(yrS);});
+  var isAll=(String(selYr)==='all');
+  var yrS=isAll?'all':String(selYr||allYrs[0]);var yr=Number(yrS);
+  var yrLbl=isAll?'Celá doba':yrS;
+  function inYr(ds){return isAll||String(ds||'').startsWith(yrS);}
+  var yrInvs=DB.invoices.filter(function(i){return inYr(i.issued);});
   // Přijaté faktury = zaplacené dle data PLATBY (paidDate), ne dle vystavení
-  var yrReceivedInvs=DB.invoices.filter(function(i){return i.status==='paid'&&String(normDate(i.paidDate)||normDate(i.issued)).startsWith(yrS);});
-  var yrEnts=DB.entries.filter(function(x){return(x.date||'').startsWith(yrS);});
-  var yrExps=DB.expenses.filter(function(x){return(x.date||'').startsWith(yrS);});
+  var yrReceivedInvs=DB.invoices.filter(function(i){return i.status==='paid'&&inYr(String(normDate(i.paidDate)||normDate(i.issued)));});
+  var yrEnts=DB.entries.filter(function(x){return inYr(x.date);});
+  var yrExps=DB.expenses.filter(function(x){return inYr(x.date);});
   // Vyfakturováno = vše vystavené daný rok (dle data vystavení)
   var invoiced=yrInvs.reduce(function(s,i){return s+(i.amount||0);},0);
-  var yrCashOrds=cashOrders(yrS);
+  var yrCashOrds=cashOrders(isAll?null:yrS);
   var cashYr=yrCashOrds.reduce(function(s,o){return s+(o.price||0);},0);
   // Tržby (obrat) = reálně přijaté peníze daný rok (faktury dle platby + hotovost)
   var tr=yrReceivedInvs.reduce(function(s,i){return s+(i.amount||0);},0)+cashYr;
@@ -1026,18 +1029,27 @@ function vReports(selYr){
   var te=yrExps.reduce(function(s,x){return s+(x.amount||0);},0);
   var np=tr-te;var ar=tt>0?Math.round(tr/(tt/3600)):0;
   _TTMAP={};
-  var curM=yr===new Date().getFullYear()?new Date().getMonth():11;
   var mon=[];
-  for(var mi=0;mi<=curM;mi++){
-    (function(i){
-      var k=yrS+'-'+String(i+1).padStart(2,'0');
-      var label=new Date(yr,i,1).toLocaleDateString('cs-CZ',{month:'short'});
-      // Vyfakturováno = dle data VYSTAVENÍ; Zaplaceno = dle data PLATBY (paidDate)
-      var mInv=DB.invoices.filter(function(x){return(x.issued||'').startsWith(k);}).reduce(function(s,x){return s+(x.amount||0);},0);
-      var mPaid=DB.invoices.filter(function(x){return x.status==='paid'&&String(normDate(x.paidDate)||normDate(x.issued)).startsWith(k);}).reduce(function(s,x){return s+(x.amount||0);},0);
-      var mCash=yrCashOrds.filter(function(o){return String(normDate(o.paidDate)).startsWith(k);}).reduce(function(s,o){return s+(o.price||0);},0);
-      mon.push({label:label,inv:mInv,paid:mPaid,cash:mCash});
-    })(mi);
+  if(isAll){
+    allYrs.slice().sort().forEach(function(y){
+      var mInv=DB.invoices.filter(function(x){return(x.issued||'').startsWith(y);}).reduce(function(s,x){return s+(x.amount||0);},0);
+      var mPaid=DB.invoices.filter(function(x){return x.status==='paid'&&String(normDate(x.paidDate)||normDate(x.issued)).startsWith(y);}).reduce(function(s,x){return s+(x.amount||0);},0);
+      var mCash=cashOrders(y).reduce(function(s,o){return s+(o.price||0);},0);
+      mon.push({label:y,inv:mInv,paid:mPaid,cash:mCash});
+    });
+  }else{
+    var curM=yr===new Date().getFullYear()?new Date().getMonth():11;
+    for(var mi=0;mi<=curM;mi++){
+      (function(i){
+        var k=yrS+'-'+String(i+1).padStart(2,'0');
+        var label=new Date(yr,i,1).toLocaleDateString('cs-CZ',{month:'short'});
+        // Vyfakturováno = dle data VYSTAVENÍ; Zaplaceno = dle data PLATBY (paidDate)
+        var mInv=DB.invoices.filter(function(x){return(x.issued||'').startsWith(k);}).reduce(function(s,x){return s+(x.amount||0);},0);
+        var mPaid=DB.invoices.filter(function(x){return x.status==='paid'&&String(normDate(x.paidDate)||normDate(x.issued)).startsWith(k);}).reduce(function(s,x){return s+(x.amount||0);},0);
+        var mCash=yrCashOrds.filter(function(o){return String(normDate(o.paidDate)).startsWith(k);}).reduce(function(s,o){return s+(o.price||0);},0);
+        mon.push({label:label,inv:mInv,paid:mPaid,cash:mCash});
+      })(mi);
+    }
   }
   var maxV=Math.max.apply(null,mon.map(function(m){return Math.max(m.inv,m.paid+m.cash);}).concat([1]));
   var bars=mon.map(function(m,i){
@@ -1116,7 +1128,7 @@ function vReports(selYr){
   }).join('<div style="width:1px;background:var(--bd);margin:0 4px"></div>');
   var pipe='<div style="height:8px;border-radius:4px;overflow:hidden;display:flex;gap:2px;margin-bottom:24px">'+stackBar+'</div>'
     +'<div style="display:flex;align-items:flex-start">'+pipeStats+'</div>';
-  var yrSel='<select style="background:var(--bg-in);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:6px 12px;font-size:14px;font-weight:700;cursor:pointer" onchange="vReports(this.value)">'+allYrs.map(function(y){return'<option value="'+y+'"'+(y===yrS?' selected':'')+'>'+y+'</option>';}).join('')+'</select>';
+  var yrSel='<select style="background:var(--bg-in);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:6px 12px;font-size:14px;font-weight:700;cursor:pointer" onchange="vReports(this.value)">'+allYrs.map(function(y){return'<option value="'+y+'"'+(!isAll&&y===yrS?' selected':'')+'>'+y+'</option>';}).join('')+'<option value="all"'+(isAll?' selected':'')+'>Celá doba</option></select>';
   html('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px"><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Reporty</h1>'+yrSel+'</div>'
     +'<div class="g6" style="margin-bottom:22px">'
     +'<div class="sc"><div class="mono" style="font-size:20px;font-weight:800;color:var(--ac);margin-bottom:4px">'+(ar?fmtM(ar):'—')+'</div><div style="font-size:12px;color:#64748b">Prům. hod. sazba</div></div>'
@@ -1127,15 +1139,15 @@ function vReports(selYr){
     +'<div class="sc"><div class="mono" style="font-size:20px;font-weight:800;color:#8b5cf6;margin-bottom:4px">'+fmtDur(tt)+'</div><div style="font-size:12px;color:#64748b">Odpracováno</div></div>'
     +'</div>'
     +'<div class="g2" style="margin-bottom:18px">'
-    +'<div class="card"><div class="st">Tržby — '+yrS+'</div><div class="cbar">'+bars+'</div><div style="display:flex;gap:16px;font-size:11px;margin-top:6px"><span style="display:flex;align-items:center;gap:5px;color:#64748b"><span style="width:10px;height:10px;background:#3b82f6;border-radius:2px;display:inline-block"></span> Vyfakturováno (dle vystavení)</span><span style="display:flex;align-items:center;gap:5px;color:#64748b"><span style="width:10px;height:10px;background:#10b981;border-radius:2px;display:inline-block"></span> Zaplaceno'+(cashYr>0?' / přijato':'')+' (dle data platby)</span></div></div>'
-    +'<div class="card"><div class="st">Tržby dle klienta — '+yrS+'</div>'+(cbars||'<div style="color:#475569;font-size:13px;text-align:center;padding:30px 0">Žádná data</div>')+'</div>'
+    +'<div class="card"><div class="st">Tržby — '+yrLbl+'</div><div class="cbar">'+bars+'</div><div style="display:flex;gap:16px;font-size:11px;margin-top:6px"><span style="display:flex;align-items:center;gap:5px;color:#64748b"><span style="width:10px;height:10px;background:#3b82f6;border-radius:2px;display:inline-block"></span> Vyfakturováno (dle vystavení)</span><span style="display:flex;align-items:center;gap:5px;color:#64748b"><span style="width:10px;height:10px;background:#10b981;border-radius:2px;display:inline-block"></span> Zaplaceno'+(cashYr>0?' / přijato':'')+' (dle data platby)</span></div></div>'
+    +'<div class="card"><div class="st">Tržby dle klienta — '+yrLbl+'</div>'+(cbars||'<div style="color:#475569;font-size:13px;text-align:center;padding:30px 0">Žádná data</div>')+'</div>'
     +'</div>'
     +'<div class="g2" style="margin-bottom:18px">'
     +'<div class="card"><div class="st">Náklady dle kategorie</div>'+(eCatH||'<div style="color:#475569;font-size:13px;text-align:center;padding:30px 0">Žádné náklady</div>')+'</div>'
-    +'<div class="card"><div class="st">Ziskovost zakázek — '+yrS+'</div>'+(profH||'<div style="color:#475569;font-size:13px;text-align:center;padding:30px 0">Žádná data</div>')+'</div>'
+    +'<div class="card"><div class="st">Ziskovost zakázek — '+yrLbl+'</div>'+(profH||'<div style="color:#475569;font-size:13px;text-align:center;padding:30px 0">Žádná data</div>')+'</div>'
     +'</div>'
     +'<div class="g2" style="margin-bottom:18px">'
-    +'<div class="card"><div class="st">Čas dle klienta — '+yrS+'</div>'+(tcbars||'<div style="color:#475569;font-size:13px;text-align:center;padding:30px 0">Žádné záznamy</div>')+'</div>'
+    +'<div class="card"><div class="st">Čas dle klienta — '+yrLbl+'</div>'+(tcbars||'<div style="color:#475569;font-size:13px;text-align:center;padding:30px 0">Žádné záznamy</div>')+'</div>'
     +'<div class="card"><div class="st">Pipeline zakázek</div>'+pipe+'</div>'
     +'</div>'
     +(toInvOrds.length?'<div class="card" style="margin-bottom:18px"><div class="st">Zbývá dofakturovat — dokončené</div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><span style="font-size:12px;color:#475569">'+toInvOrds.length+' '+( toInvOrds.length===1?'zakázka':toInvOrds.length<5?'zakázky':'zakázek')+'</span><span class="mono" style="font-size:20px;font-weight:800;color:var(--ac)">'+fmtM(toInvTotal)+'</span></div>'+toInvH+'</div>':'')
