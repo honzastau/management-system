@@ -1062,7 +1062,7 @@ function vReports(selYr){
     if(!clientRev[key])clientRev[key]={name:c?(c.company||c.name):'Bez klienta',color:c?(c.color||'#f59e0b'):'#f59e0b',v:0};
     clientRev[key].v+=(o.price||0);
   });
-  var rbc=Object.keys(clientRev).map(function(k){return clientRev[k];}).filter(function(x){return x.v>0;}).sort(function(a,b){return b.v-a.v;});
+  var rbc=Object.keys(clientRev).filter(function(k){return k!=='none';}).map(function(k){return clientRev[k];}).filter(function(x){return x.v>0;}).sort(function(a,b){return b.v-a.v;});
   var maxC=Math.max.apply(null,rbc.map(function(c){return c.v;}).concat([1]));
   var cbars=rbc.slice(0,6).map(function(c,i){
     var tk='cl'+i;
