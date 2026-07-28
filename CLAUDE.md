@@ -10,6 +10,16 @@ Osobní management systém pro správu klientů, zakázek, faktur, měření ča
 ## Auto-deploy
 Stop hook v `~/.claude/settings.json` automaticky commituje a pushuje každou změnu na GitHub. Není třeba commitovat ručně.
 
+## Development verze
+`index-dev.html` — kopie `index.html` pro testování větších změn, aniž by se zasáhlo do produkční verze.
+- `DEV_MODE=true` na začátku scriptu přepíná `loadAll()`/`mut()` na lokální mock — **žádné volání na Google Apps Script**, žádná reálná data.
+- Sample data v `SAMPLE_DATA` (4 klienti, 5 zakázek různých typů — s deadline, průběžná, hotovostní, archivovaná, 4 faktury ve stavech draft/sent/paid, entries, expenses, notes).
+- Mutace se ukládají do `localStorage` klíč `mgmt_dev_db` (persistence mezi reloady, ale odděleně od produkce). Reset na výchozí sample data = smazat tento klíč v localStorage.
+- Vizuálně odlišené: title "Management System (DEV)", červený "DEV" label v sidebaru.
+- Po pushi dostupné na `https://honzastau.github.io/management-system/index-dev.html` (stejný repo/branch jako produkce, jen jiný soubor).
+- **Změny v `index.html` a `index-dev.html` je nutné dělat odděleně** — kopírování větších úprav mezi soubory je ruční (žádný sdílený include).
+- Známý (již existující, needěláno v rámci dev verze) bug: `vDash()` u průběžných zakázek (`!o.deadline`) počítá `dl=NaN`, zobrazí se "NaNd" místo "∞ Průběžná zakázka" — projeví se i v produkci, pokud tam existuje průběžná zakázka.
+
 ## Klíčové technické detaily
 
 ### Data flow
