@@ -1181,17 +1181,17 @@ function vReports(selYr){
   var backlogH=backlogSorted.slice(0,8).map(function(o){var cl=gc(o.clientId);return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:12px"><span class="dot" style="background:'+e(o.color||'#f59e0b')+'"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(o.name)+'</span><span style="color:#64748b;flex-shrink:0;margin-right:8px">'+e(cl?cl.company||cl.name:'')+'</span><span class="mono" style="color:var(--ac);font-weight:700;flex-shrink:0">'+fmtM(o.price)+'</span></div>';}).join('');
   var yrBtns=allYrs.slice().sort().map(function(y){return '<button class="btn btn-sm '+(!isAll&&y===yrS?'bp':'bg')+'" onclick="vReports(\''+y+'\')">'+y+'</button>';}).join('');
   var yrSel='<div style="display:flex;gap:8px;flex-wrap:wrap">'+'<button class="btn btn-sm '+(isAll?'bp':'bg')+'" onclick="vReports(\'all\')">ALL TIME</button>'+yrBtns+'</div>';
-  function kpiTile(label,val,color){
-    return '<div class="sc" style="border-top:3px solid '+color+';cursor:default"><div class="mono" style="font-size:20px;font-weight:800;color:'+color+';margin-bottom:5px">'+val+'</div><div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;font-weight:700">'+label+'</div></div>';
+  function kpiTileRow(label,val,color,valSize,lblSize,padV,extraStyle){
+    return '<div class="sc" style="border-top:3px solid '+color+';cursor:default;display:flex;align-items:center;justify-content:space-between;padding-top:'+padV+'px;padding-bottom:'+padV+'px'+(extraStyle||'')+'"><div style="font-size:'+lblSize+'px;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;font-weight:700">'+label+'</div><div class="mono" style="font-size:'+valSize+'px;font-weight:800;color:'+color+'">'+val+'</div></div>';
   }
-  function kpiTileRow(label,val,color,extraStyle){
-    return '<div class="sc" style="border-top:3px solid '+color+';cursor:default;display:flex;align-items:center;justify-content:space-between;padding-top:28px;padding-bottom:28px'+(extraStyle||'')+'"><div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;font-weight:700">'+label+'</div><div class="mono" style="font-size:20px;font-weight:800;color:'+color+'">'+val+'</div></div>';
+  function kpiTile(label,val,color){
+    return '<div class="sc" style="border-top:3px solid '+color+';cursor:default;padding-top:9px;padding-bottom:9px"><div class="mono" style="font-size:14px;font-weight:800;color:'+color+';margin-bottom:3px">'+val+'</div><div style="font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em;font-weight:700">'+label+'</div></div>';
   }
   html('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:14px"><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Statistiky</h1>'+yrSel+'</div>'
-    +kpiTileRow('Čistý zisk — '+yrLbl,fmtM(np),np>=0?'#10b981':'#ef4444',';margin-bottom:14px')
+    +kpiTileRow('Čistý zisk — '+yrLbl,fmtM(np),np>=0?'#10b981':'#ef4444',32,13,28,';margin-bottom:14px')
     +'<div class="g2" style="margin-bottom:14px">'
-    +kpiTileRow('Celkem obrat',fmtM(tr),'#10b981')
-    +kpiTileRow('Celkem náklady',fmtM(te),'#ef4444')
+    +kpiTileRow('Celkem obrat',fmtM(tr),'#10b981',22,11,22)
+    +kpiTileRow('Celkem náklady',fmtM(te),'#ef4444',22,11,22)
     +'</div>'
     +'<div class="g4" style="margin-bottom:22px">'
     +kpiTile('Prům. hod. sazba',ar?fmtM(ar):'—','var(--ac)')
