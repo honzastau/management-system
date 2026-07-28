@@ -186,7 +186,7 @@ select.inp option{background:var(--bg-in)}
 <div id="tt"></div>
 <script>
 window.onerror=function(msg,src,line,col,err){document.body.innerHTML='<div style="background:#f8fafc;color:#dc2626;padding:40px;font-family:sans-serif;min-height:100vh"><h2>Chyba aplikace</h2><p>'+msg+'</p><small>Řádek: '+line+'</small></div>';return false;};
-const DB={clients:[],orders:[],entries:[],invoices:[],expenses:[],notes:[]};
+const DB={clients:[],orders:[],entries:[],invoices:[],expenses:[],notes:[],todos:[]};
 const DEV_MODE=true;
 const DEV_DB_KEY='mgmt_dev_db';
 const SAMPLE_DATA={
@@ -230,6 +230,11 @@ const SAMPLE_DATA={
     {id:1,orderId:1,text:'Klient chce přidat filtr podle barvy produktu.',created:'2026-07-10'},
     {id:2,orderId:2,text:'Čekáme na finální texty od klienta.',created:'2026-06-01'},
     {id:3,orderId:4,text:'Platba přijata v hotovosti na schůzce.',created:'2026-07-01'}
+  ],
+  todos:[
+    {id:1,text:'Poslat nabídku Evě Malé',done:false,created:'2026-07-20'},
+    {id:2,text:'Zkontrolovat platbu za fakturu 2026-002',done:false,created:'2026-07-25'},
+    {id:3,text:'Objednat vizitky',done:true,created:'2026-07-10'}
   ]
 };
 function devLoad(){try{var raw=LS.getItem(DEV_DB_KEY);return raw?JSON.parse(raw):JSON.parse(JSON.stringify(SAMPLE_DATA));}catch(e){return JSON.parse(JSON.stringify(SAMPLE_DATA));}}
@@ -323,12 +328,12 @@ function normalizeInvoices(invs){
 async function loadAll(){
   if(DEV_MODE){
     var d=devLoad();
-    DB.clients=d.clients||[];DB.orders=d.orders||[];DB.entries=d.entries||[];DB.invoices=normalizeInvoices(d.invoices||[]);DB.expenses=d.expenses||[];DB.notes=d.notes||[];
+    DB.clients=d.clients||[];DB.orders=d.orders||[];DB.entries=d.entries||[];DB.invoices=normalizeInvoices(d.invoices||[]);DB.expenses=d.expenses||[];DB.notes=d.notes||[];DB.todos=d.todos||[];
     hideErr();badges();render();return;
   }
   html('<div style="text-align:center;padding:80px;color:#475569">⟳ Načítám data…</div>');
   try{var d=await apiFetch({action:'getAll'});
-    DB.clients=d.clients||[];DB.orders=d.orders||[];DB.entries=d.entries||[];DB.invoices=normalizeInvoices(d.invoices||[]);DB.expenses=d.expenses||[];DB.notes=d.notes||[];
+    DB.clients=d.clients||[];DB.orders=d.orders||[];DB.entries=d.entries||[];DB.invoices=normalizeInvoices(d.invoices||[]);DB.expenses=d.expenses||[];DB.notes=d.notes||[];DB.todos=d.todos||[];
     hideErr();badges();render();
   }catch(err){showErr(err.message);html('<div style="text-align:center;padding:80px;color:#475569">Chyba načítání.<br><small>'+e(err.message)+'</small></div>');}
 }
@@ -561,39 +566,32 @@ function printInv(id){
 // ═══ VIEWS ═══════════════════════════════════════════════════
 function vDash(){
   var act=DB.orders.filter(function(o){return o.status==='active';});
-  var paid=DB.invoices.filter(function(i){return i.status==='paid';});
-  var invoicedSum=paid.reduce(function(s,i){return s+(i.amount||0);},0);
-  var cashAll=cashSum();
-  var turnover=invoicedSum+cashAll;
   var now=new Date();now.setHours(0,0,0,0);
+  var curMonthKey=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  var monthPaidInv=DB.invoices.filter(function(i){return i.status==='paid'&&String(normDate(i.paidDate)||normDate(i.issued)).startsWith(curMonthKey);}).reduce(function(s,i){return s+(i.amount||0);},0);
+  var monthCash=DB.orders.filter(function(o){return isNoInv(o)&&o.paidDate&&String(normDate(o.paidDate)).startsWith(curMonthKey);}).reduce(function(s,o){return s+(o.price||0);},0);
+  var monthTurnover=monthPaidInv+monthCash;
+  var monthMinutes=DB.entries.filter(function(x){return String(x.date||'').startsWith(curMonthKey);}).reduce(function(s,x){return s+(x.duration||0);},0);
   var pend=DB.invoices.filter(function(i){return i.status!=='paid'&&i.dueDate&&new Date(i.dueDate)<now;});
-  var tt=DB.entries.reduce(function(s,x){return s+(x.duration||0);},0);
-  var te=DB.expenses.reduce(function(s,x){return s+(x.amount||0);},0);
-  var warn=pend.length?'<div style="display:flex;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:14px 18px;margin-bottom:20px;align-items:center;gap:14px"><span style="font-size:20px">⚠️</span><div><div style="font-weight:700;color:#d97706">'+pend.length+' nezaplacen'+(pend.length===1?'á faktura':pend.length<5?'é faktury':'ých faktur')+'</div><div style="font-size:12px;color:#92400e">'+fmtM(pend.reduce(function(s,i){return s+(i.amount||0);},0))+'</div></div><button class="btn bg btn-sm" style="margin-left:auto" onclick="sv(\'invoices\')">Zobrazit</button></div>':'';
-  var ar=act.slice(0,5).map(function(o){var cl=gc(o.clientId);var dl=Math.ceil((new Date(o.deadline)-new Date())/86400000);
-    var delivOnTime=o.deadline?o.delivered<=o.deadline:true;
-    var pct=o.deadline?Math.min(100,Math.max(0,(new Date()-new Date(o.created))/(new Date(o.deadline)-new Date(o.created))*100)):0;
-    var priceEl;
-    if(!o.deadline&&!isNoInv(o)){
-      var oinvs=DB.invoices.filter(function(iv){return Number(iv.orderId)===o.id||(Array.isArray(iv.orderIds)&&iv.orderIds.map(Number).indexOf(o.id)>-1);});
-      var paid2=oinvs.filter(function(iv){return iv.status==='paid';}).reduce(function(s,iv){return s+(iv.amount||0);},0);
-      priceEl='<span class="mono" style="font-size:12px;color:var(--ac);flex-shrink:0">'+fmtM(paid2)+'</span>';
-    }else{
-      priceEl='<span class="mono" style="font-size:12px;color:var(--ac);flex-shrink:0">'+fmtM(o.price)+'</span>';
-    }
-    var stCol=o.status==='completed'?'#10b981':(o.delivered?(delivOnTime?'#10b981':'#d97706'):(!o.deadline?'#64748b':dl<14?'#f87171':'#64748b'));
-    var stLbl=o.status==='completed'?((!o.deadline||dl>=0)?'✓ Hotovo':'>Termínu'):(o.delivered?(delivOnTime?'✓ Odevzdáno':'⚠ Odevzdáno po term.'):(!o.deadline?'∞ Průběžná':dl<0?'Po termínu!':dl+'d'));
-    return '<div style="display:flex;align-items:center;gap:11px;margin-bottom:14px;cursor:pointer" onclick="vOrderDetail('+o.id+')"><span class="dot" style="background:'+e(o.color)+'"></span><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(o.name)+'</div><div style="font-size:12px;color:#475569">'+e((cl&&cl.company||cl&&cl.name||'—'))+' · <span style="color:'+stCol+'">'+stLbl+'</span></div><div class="pb"><div class="pf" style="width:'+pct+'%;background:'+(pct>85?'#ef4444':e(o.color))+'"></div></div></div>'+priceEl+'</div>';}).join('');
+  var todos=DB.todos.slice().sort(function(a,b){if(!!a.done!==!!b.done)return a.done?1:-1;return b.id-a.id;});
+  var todosH=todos.map(function(t){
+    return '<div style="display:flex;align-items:center;gap:11px;padding:9px 4px;border-bottom:1px solid var(--bd)">'
+      +'<button onclick="toggleTodo('+t.id+')" style="width:19px;height:19px;border-radius:6px;border:2px solid '+(t.done?'#10b981':'var(--bd)')+';background:'+(t.done?'#10b981':'transparent')+';cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;padding:0">'+(t.done?ic('check',12):'')+'</button>'
+      +'<div style="flex:1;font-size:13px;'+(t.done?'text-decoration:line-through;color:#64748b':'color:var(--tx)')+'">'+e(t.text)+'</div>'
+      +'<button class="btn bd btn-sm" style="padding:2px 7px" onclick="delTodo('+t.id+')" aria-label="Smazat úkol">'+ic('trash')+'</button>'
+      +'</div>';
+  }).join('');
   html('<div style="margin-bottom:28px"><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Přehled</h1><p style="color:#475569;font-size:14px;margin-top:4px">'+new Date().toLocaleDateString('cs-CZ',{weekday:'long',year:'numeric',month:'long',day:'numeric'})+'</p></div>'+
   '<div class="mpanel" style="margin-bottom:22px">'+
   '<div class="mc" onclick="sv(\'orders\')"><div class="lbl" style="margin-bottom:8px">Aktivní zakázky</div><div class="mono" style="font-size:26px;font-weight:800;color:var(--ac)">'+act.length+'</div></div>'+
-  '<div class="mc" onclick="sv(\'clients\')"><div class="lbl" style="margin-bottom:8px">Klienti</div><div class="mono" style="font-size:26px;font-weight:800;color:#3b82f6">'+DB.clients.length+'</div></div>'+
-  '<div class="mc" onclick="sv(\'invoices\')"><div class="lbl" style="margin-bottom:8px">Tržby (obrat)</div><div class="mono" style="font-size:22px;font-weight:800;color:#10b981">'+fmtM(turnover)+'</div></div>'+
-  '<div class="mc" onclick="sv(\'time\')"><div class="lbl" style="margin-bottom:8px">Odpracováno</div><div class="mono" style="font-size:26px;font-weight:800;color:#8b5cf6">'+fmtDur(tt)+'</div></div>'+
+  '<div class="mc" onclick="sv(\'invoices\')"><div class="lbl" style="margin-bottom:8px">Obrat (tento měsíc)</div><div class="mono" style="font-size:22px;font-weight:800;color:#10b981">'+fmtM(monthTurnover)+'</div></div>'+
+  '<div class="mc" onclick="sv(\'time\')"><div class="lbl" style="margin-bottom:8px">Odpracováno (tento měsíc)</div><div class="mono" style="font-size:26px;font-weight:800;color:#8b5cf6">'+fmtDur(monthMinutes)+'</div></div>'+
+  '<div class="mc" onclick="sv(\'invoices\')"><div class="lbl" style="margin-bottom:8px">Po splatnosti</div><div class="mono" style="font-size:26px;font-weight:800;color:'+(pend.length?'#ef4444':'#10b981')+'">'+pend.length+'</div></div>'+
   '</div>'+
-  warn+
-  '<div class="g2"><div class="card"><div style="display:flex;justify-content:space-between;margin-bottom:16px"><div class="st" style="margin:0">Aktivní zakázky</div><button class="btn bg btn-sm" onclick="sv(\'orders\')">Vše →</button></div>'+(ar||'<div style="color:#475569;font-size:13px;text-align:center;padding:20px 0">Žádné zakázky</div>')+'</div>'+
-  '<div class="card"><div class="st">Rychlý přehled</div><div style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid var(--bd)"><span style="font-size:13px;color:var(--tx2)">Tržby (obrat)</span><span class="mono" style="font-size:13px;font-weight:700;color:#059669">'+fmtM(turnover)+'</span></div><div style="display:flex;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid var(--bd)"><span style="font-size:13px;color:var(--tx2)">Vyfakturováno (daň. základ)</span><span class="mono" style="font-size:13px;font-weight:700;color:#3b82f6">'+fmtM(invoicedSum)+'</span></div><div style="display:flex;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid var(--bd)"><span style="font-size:13px;color:var(--tx2)">Celkové náklady</span><span class="mono" style="font-size:13px;font-weight:700;color:var(--er)">'+fmtM(te)+'</span></div><div style="display:flex;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid var(--bd)"><span style="font-size:13px;color:var(--tx2)">Odpracováno</span><span class="mono" style="font-size:13px;font-weight:700;color:#8b5cf6">'+fmtDur(tt)+'</span></div></div></div></div>');
+  '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div class="st" style="margin:0">Úkoly</div></div>'
+  +'<div style="display:flex;gap:8px;margin-bottom:14px"><input class="inp" id="todo-inp" placeholder="Nový úkol..." onkeydown="if(event.key===\'Enter\')addTodoInline()"><button class="btn bp" onclick="addTodoInline()">+ Přidat</button></div>'
+  +(todosH||'<div style="color:#475569;font-size:13px;text-align:center;padding:20px 0">Žádné úkoly</div>')
+  +'</div>');
 }
 
 function vClients(){
@@ -1296,6 +1294,19 @@ async function delE(id,oid){confirmAction('Smazat tento záznam?','Smazat',async
 async function delI(id){confirmAction('Smazat tuto fakturu?','Smazat',async function(){await mut('delete','invoices',{id:id});toast('Faktura smazána','success');});}
 async function delExp(id,oid){confirmAction('Smazat tento náklad?','Smazat',async function(){await mut('delete','expenses',{id:id});toast('Náklad smazán','success');if(oid)vOrderDetail(oid);});}
 async function delNote(id,oid){confirmAction('Smazat tuto poznámku?','Smazat',async function(){await mut('delete','notes',{id:id});toast('Poznámka smazána','success');if(oid)vOrderDetail(oid);});}
+
+function addTodoInline(){
+  var inp=$('todo-inp');if(!inp)return;var txt=inp.value.trim();if(!txt)return;
+  inp.value='';
+  mut('create','todos',{data:{text:txt,done:false,created:today()}});
+}
+async function toggleTodo(id){
+  var t=DB.todos.find(function(x){return x.id===id;});if(!t)return;
+  await mut('update','todos',{id:id,data:Object.assign({},t,{done:!t.done})});
+}
+function delTodo(id){
+  confirmAction('Smazat tento úkol?','Smazat',async function(){await mut('delete','todos',{id:id});});
+}
 async function setIS(id,status){
   var i=DB.invoices.find(function(x){return x.id===id;});if(!i)return;
   if(status==='paid'){
