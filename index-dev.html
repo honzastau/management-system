@@ -181,7 +181,7 @@ select.inp option{background:var(--bg-in)}
     <main id="content"></main>
   </div>
 </div>
-<div id="modal-ov" onclick="if(event.target===this)closeModal()"><div class="mbox" id="mbox" role="dialog" aria-modal="true" aria-labelledby="mbox-title"></div></div>
+<div id="modal-ov" onmousedown="_ovMouseDown=(event.target===this)" onclick="if(event.target===this&&_ovMouseDown)closeModal()"><div class="mbox" id="mbox" role="dialog" aria-modal="true" aria-labelledby="mbox-title"></div></div>
 <div id="sync">⟳ Ukládám…</div>
 <div id="tt"></div>
 <script>
@@ -531,7 +531,8 @@ function printInv(id){
   if(p.iban)w.document.write('<div class="p-lbl">IBAN</div><div class="p-val">'+e(p.iban)+'</div>');
   w.document.write('</div>');
   w.document.write('<div class="pay-col">');
-  w.document.write('<div class="p-lbl">Forma úhrady</div><div class="p-val">Převodem</div>');
+  var pmLbl=inv.paymentMethod==='karta'?'Platební kartou':inv.paymentMethod==='hotovost'?'Hotovost':'Převodem';
+  w.document.write('<div class="p-lbl">Forma úhrady</div><div class="p-val">'+pmLbl+'</div>');
   if(vs)w.document.write('<div class="p-lbl">Variabilní symbol</div><div class="p-val">'+vs+'</div>');
   w.document.write('</div>');
   w.document.write('<div class="pay-col center">');
@@ -1309,7 +1310,7 @@ async function confirmPay(id){
 
 // ═══ MODALS ══════════════════════════════════════════════════
 function cpick(sel,varN){return '<div class="cp">'+COLORS.map(function(c){return '<div class="cs'+(c===sel?' sel':'')+'" style="background:'+c+'" onclick="'+varN+'=\''+c+'\';document.querySelectorAll(\'.cs\').forEach(function(x){x.classList.remove(\'sel\');});this.classList.add(\'sel\')"></div>';}).join('')+'</div>';}
-var _modalPrevFocus=null;
+var _modalPrevFocus=null;var _ovMouseDown=false;
 function openModal(h){
   var box=$('mbox');box.innerHTML=h;
   $('modal-ov').classList.add('open');
@@ -1423,9 +1424,10 @@ function openIM(editId){
     +'<div id="iitems"></div>'
     +'<button class="btn bg btn-sm" style="margin-bottom:13px" onclick="addII()">+ Přidat položku</button>'
     +'<div id="itot" class="mono" style="text-align:right;font-size:15px;font-weight:800;color:var(--ac);margin-bottom:13px">Celkem: 0 Kč</div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px">'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:13px">'
     +'<div class="fr" style="margin:0"><label class="lbl" for="fdu">Splatnost</label><input class="inp" type="date" id="fdu" value="'+(inv?inv.dueDate:dueIn(14))+'"></div>'
     +'<div class="fr" style="margin:0"><label class="lbl" for="fcu">Měna</label><select class="inp" id="fcu"><option'+((!inv||inv.currency==='CZK')?' selected':'')+'>CZK</option><option'+(inv&&inv.currency==='EUR'?' selected':'')+'>EUR</option><option'+(inv&&inv.currency==='USD'?' selected':'')+'>USD</option></select></div>'
+    +'<div class="fr" style="margin:0"><label class="lbl" for="fpm">Způsob platby</label><select class="inp" id="fpm"><option value="hotovost"'+((!inv||!inv.paymentMethod||inv.paymentMethod==='hotovost')?' selected':'')+'>Hotovost</option><option value="prevodem"'+(inv&&inv.paymentMethod==='prevodem'?' selected':'')+'>Převodem</option><option value="karta"'+(inv&&inv.paymentMethod==='karta'?' selected':'')+'>Platební karta</option></select></div>'
     +'</div>'
     
     +'<div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="saveI('+(editId||0)+')">Uložit</button></div>'); 
@@ -1458,7 +1460,7 @@ function updateInvInfo(){
     var allEmpty=INV_ITEMS.every(function(it){return !it.desc&&!it.price;});
     if(allEmpty&&orders.length>0){
       INV_ITEMS=orders.map(function(ord){
-        return {desc:ord.name||'',note:'',qty:1,price:ord.price||0};
+        return {desc:'',note:ord.name||'',qty:1,price:ord.price||0};
       });
       renderII();calcItot();
     }
@@ -1520,6 +1522,7 @@ async function saveI(editId){
       items:items,
       amount:amount,
       currency:$('fcu').value||ex.currency,
+      paymentMethod:$('fpm').value||ex.paymentMethod||'hotovost',
       dueDate:$('fdu').value||ex.dueDate,
       issued:$('fiss').value||ex.issued,
       duzp:$('fduzp').value||ex.duzp,
@@ -1529,7 +1532,7 @@ async function saveI(editId){
     toast('Faktura uložena','success');
   }else{
     var primaryClientId=o?o.clientId:'';
-    var baseData={orderId:oid,orderIds:oids,clientId:primaryClientId,recipient:$('frec').value,items:items,amount:amount,currency:$('fcu').value,dueDate:$('fdu').value,note:'',issued:$('fiss').value||today(),duzp:$('fduzp').value||today(),number:$('finv').value||nin(),status:'draft'};
+    var baseData={orderId:oid,orderIds:oids,clientId:primaryClientId,recipient:$('frec').value,items:items,amount:amount,currency:$('fcu').value,paymentMethod:$('fpm').value||'hotovost',dueDate:$('fdu').value,note:'',issued:$('fiss').value||today(),duzp:$('fduzp').value||today(),number:$('finv').value||nin(),status:'draft'};
     await mut('create','invoices',{data:baseData});
     toast('Faktura vytvořena','success');
   }
