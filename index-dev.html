@@ -1157,14 +1157,6 @@ function vReports(selYr){
   var eCatArr=Object.entries(eCats).sort(function(a,b){return b[1]-a[1];});
   var maxE=Math.max.apply(null,eCatArr.map(function(p){return p[1];}).concat([1]));
   var eCatH=eCatArr.map(function(p){return '<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:var(--tx2)">'+e(p[0])+'</span><span class="mono" style="color:#ef4444;font-weight:700">'+fmtM(p[1])+'</span></div><div class="pb"><div class="pf" style="width:'+(p[1]/maxE)*100+'%;background:#ef4444"></div></div></div>';}).join('');
-  var yrOrderIds={};
-  yrInvs.forEach(function(inv){
-    if(inv.orderId)yrOrderIds[Number(inv.orderId)]=1;
-    if(Array.isArray(inv.orderIds))inv.orderIds.forEach(function(id){yrOrderIds[Number(id)]=1;});
-  });
-  yrEnts.forEach(function(x){if(x.orderId)yrOrderIds[Number(x.orderId)]=1;});
-  var profOrds=DB.orders.filter(function(o){return o.price>0&&yrOrderIds[o.id];}).map(function(o){var ex2=expSum(o.id);var pr=o.price-ex2;var pct=Math.round((pr/o.price)*100);return{o:o,pr:pr,pct:pct};}).sort(function(a,b){return b.pct-a.pct;}).slice(0,6);
-  var profH=profOrds.map(function(x){return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:12px"><span class="dot" style="background:'+e(x.o.color)+'"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(x.o.name)+'</span><span class="mono" style="color:'+(x.pct>=0?'#10b981':'#ef4444')+';font-weight:700">'+x.pct+'%</span><span class="mono" style="font-weight:700">'+fmtM(x.pr)+'</span></div>';}).join('');
   var toInvOrds=DB.orders.filter(function(o){return o.status==='completed'&&o.deadline&&o.price>0&&!isNoInv(o);}).map(function(o){var linked=DB.invoices.filter(function(i){var ids=Array.isArray(i.orderIds)?i.orderIds.map(Number):[];return Number(i.orderId)===o.id||ids.indexOf(o.id)>=0;});var inv=linked.reduce(function(s,i){return s+(i.amount||0);},0);return{o:o,inv:inv,rem:o.price-inv};}).filter(function(x){return x.inv>0&&x.rem>0;}).sort(function(a,b){return b.rem-a.rem;});
   var toInvTotal=toInvOrds.reduce(function(s,x){return s+x.rem;},0);
   var toInvH=toInvOrds.slice(0,8).map(function(x){var cl=gc(x.o.clientId);return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:12px"><span class="dot" style="background:'+e(x.o.color||'#f59e0b')+'"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(x.o.name)+'</span><span style="color:#64748b;flex-shrink:0;margin-right:8px">'+e(cl?cl.company||cl.name:'')+'</span><span class="mono" style="color:var(--ac);font-weight:700;flex-shrink:0">'+fmtM(x.rem)+'</span></div>';}).join('');
@@ -1192,11 +1184,14 @@ function vReports(selYr){
   function kpiTile(label,val,color){
     return '<div class="sc" style="border-top:3px solid '+color+';cursor:default"><div class="mono" style="font-size:20px;font-weight:800;color:'+color+';margin-bottom:5px">'+val+'</div><div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;font-weight:700">'+label+'</div></div>';
   }
+  function kpiTileRow(label,val,color,extraStyle){
+    return '<div class="sc" style="border-top:3px solid '+color+';cursor:default;display:flex;align-items:center;justify-content:space-between;padding-top:28px;padding-bottom:28px'+(extraStyle||'')+'"><div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;font-weight:700">'+label+'</div><div class="mono" style="font-size:20px;font-weight:800;color:'+color+'">'+val+'</div></div>';
+  }
   html('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:14px"><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Statistiky</h1>'+yrSel+'</div>'
-    +'<div class="sc" style="border-top:3px solid '+(np>=0?'#10b981':'#ef4444')+';margin-bottom:14px;cursor:default;text-align:center;padding:22px 20px"><div class="mono" style="font-size:48px;font-weight:800;color:'+(np>=0?'#10b981':'#ef4444')+';line-height:1;margin-bottom:8px">'+fmtM(np)+'</div><div style="font-size:12px;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Čistý zisk — '+yrLbl+'</div></div>'
+    +kpiTileRow('Čistý zisk — '+yrLbl,fmtM(np),np>=0?'#10b981':'#ef4444',';margin-bottom:14px')
     +'<div class="g2" style="margin-bottom:14px">'
-    +kpiTile('Celkem obrat',fmtM(tr),'#10b981')
-    +kpiTile('Celkem náklady',fmtM(te),'#ef4444')
+    +kpiTileRow('Celkem obrat',fmtM(tr),'#10b981')
+    +kpiTileRow('Celkem náklady',fmtM(te),'#ef4444')
     +'</div>'
     +'<div class="g4" style="margin-bottom:22px">'
     +kpiTile('Prům. hod. sazba',ar?fmtM(ar):'—','var(--ac)')
@@ -1211,9 +1206,8 @@ function vReports(selYr){
     +'</div>'
     +'<div class="g2" style="margin-bottom:18px">'
     +'<div class="card"><div class="st">Tržby dle klienta — '+yrLbl+'</div>'+(cbars||'<div style="color:#475569;font-size:13px;text-align:center;padding:30px 0">Žádná data</div>')+'</div>'
-    +'<div class="card"><div class="st">Ziskovost zakázek — '+yrLbl+'</div>'+(profH||'<div style="color:#475569;font-size:13px;text-align:center;padding:30px 0">Žádná data</div>')+'</div>'
+    +'<div class="card"><div class="st">Backlog — kolik peněz je v aktivních zakázkách</div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><span style="font-size:12px;color:#475569">'+activeOrds.length+' '+(activeOrds.length===1?'aktivní zakázka':activeOrds.length<5?'aktivní zakázky':'aktivních zakázek')+'</span><span class="mono" style="font-size:18px;font-weight:800;color:var(--ac)">'+fmtM(backlogTotal)+'</span></div>'+(backlogH||'<div style="color:#475569;font-size:13px;text-align:center;padding:30px 0">Žádné aktivní zakázky</div>')+'</div>'
     +'</div>'
-    +'<div class="card" style="margin-bottom:18px"><div class="st">Backlog — kolik peněz je v aktivních zakázkách</div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><span style="font-size:12px;color:#475569">'+activeOrds.length+' '+(activeOrds.length===1?'aktivní zakázka':activeOrds.length<5?'aktivní zakázky':'aktivních zakázek')+'</span><span class="mono" style="font-size:24px;font-weight:800;color:var(--ac)">'+fmtM(backlogTotal)+'</span></div>'+(backlogH||'<div style="color:#475569;font-size:13px;text-align:center;padding:20px 0">Žádné aktivní zakázky</div>')+'</div>'
     +(toInvOrds.length?'<div class="card" style="margin-bottom:18px"><div class="st">Zbývá dofakturovat — dokončené</div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><span style="font-size:12px;color:#475569">'+toInvOrds.length+' '+( toInvOrds.length===1?'zakázka':toInvOrds.length<5?'zakázky':'zakázek')+'</span><span class="mono" style="font-size:20px;font-weight:800;color:var(--ac)">'+fmtM(toInvTotal)+'</span></div>'+toInvH+'</div>':'')
   );
 }
