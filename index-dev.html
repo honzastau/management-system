@@ -164,7 +164,7 @@ select.inp option{background:var(--bg-in)}
     <button class="ni" data-v="archive" onclick="nav(this)"><span class="ni-icon">⊡</span>Archiv<span class="nb" id="ba">0</span></button>
     <button class="ni" data-v="time" onclick="nav(this)"><span class="ni-icon">◷</span>Čas</button>
     <button class="ni" data-v="invoices" onclick="nav(this)"><span class="ni-icon">◻</span>Faktury<span class="nb" id="bi">0</span></button>
-    <button class="ni" data-v="reports" onclick="nav(this)"><span class="ni-icon">◑</span>Reporty</button>
+    <button class="ni" data-v="reports" onclick="nav(this)"><span class="ni-icon">◑</span>Statistiky</button>
     <div class="nav-sep"></div>
     <button class="ni" data-v="settings" onclick="nav(this)"><span class="ni-icon">⚙</span>Nastavení</button>
     <div class="nav-bot"><div id="nav-rev-lbl">Obrat letos</div><div class="mono" id="nav-rev" style="color:var(--ac);font-weight:800;font-size:14px">0 Kč</div></div>
@@ -1121,9 +1121,9 @@ function vReports(selYr){
     var hInv=Math.max((m.inv/maxV)*130,m.inv>0?4:0);
     var hRec=Math.max((mRec/maxV)*130,mRec>0?4:0);
     return '<div class="bcol" style="position:relative" onmouseenter="showTTK(event,\''+tk+'\')" onmousemove="posTT(event)" onmouseleave="hideTT()">'
-      +'<div style="display:flex;align-items:flex-end;justify-content:center;gap:3px;width:100%;height:100%">'
-      +'<div style="width:42%;max-width:15px;height:'+hInv+'px;background:#3b82f6;border-radius:3px 3px 0 0"></div>'
-      +'<div style="width:42%;max-width:15px;height:'+hRec+'px;background:#10b981;border-radius:3px 3px 0 0"></div>'
+      +'<div style="display:flex;align-items:flex-end;justify-content:center;gap:2px;width:100%;height:100%">'
+      +'<div style="width:42%;max-width:16px;height:'+hInv+'px;background:#3b82f6;border-radius:4px 4px 0 0"></div>'
+      +'<div style="width:42%;max-width:16px;height:'+hRec+'px;background:#10b981;border-radius:4px 4px 0 0"></div>'
       +'</div><span class="blab">'+m.label+'</span></div>';
   }).join('');
   var clientRev={};
@@ -1149,7 +1149,9 @@ function vReports(selYr){
     return '<div style="margin-bottom:10px" onmouseenter="showTTK(event,\''+tk+'\')" onmousemove="posTT(event)" onmouseleave="hideTT()"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><div style="display:flex;align-items:center;gap:7px"><span class="dot" style="background:'+e(c.color)+'"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">'+e(c.name)+'</span></div><span class="mono" style="color:var(--ac);font-weight:700;flex-shrink:0">'+fmtM(c.v)+'</span></div><div class="pb" style="height:5px"><div class="pf" style="width:'+(c.v/maxC)*100+'%;background:'+e(c.color)+'"></div></div></div>';
   }).join('');
   var eCats={};yrExps.forEach(function(x){eCats[x.category]=(eCats[x.category]||0)+(x.amount||0);});
-  var eCatH=Object.entries(eCats).sort(function(a,b){return b[1]-a[1];}).map(function(p){return '<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px"><span style="color:#94a3b8">'+e(p[0])+'</span><span class="mono" style="color:#ef4444;font-weight:700">'+fmtM(p[1])+'</span></div>';}).join('');
+  var eCatArr=Object.entries(eCats).sort(function(a,b){return b[1]-a[1];});
+  var maxE=Math.max.apply(null,eCatArr.map(function(p){return p[1];}).concat([1]));
+  var eCatH=eCatArr.map(function(p){return '<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:var(--tx2)">'+e(p[0])+'</span><span class="mono" style="color:#ef4444;font-weight:700">'+fmtM(p[1])+'</span></div><div class="pb"><div class="pf" style="width:'+(p[1]/maxE)*100+'%;background:#ef4444"></div></div></div>';}).join('');
   var yrOrderIds={};
   yrInvs.forEach(function(inv){
     if(inv.orderId)yrOrderIds[Number(inv.orderId)]=1;
@@ -1192,17 +1194,20 @@ function vReports(selYr){
   var pipe='<div style="height:8px;border-radius:4px;overflow:hidden;display:flex;gap:2px;margin-bottom:24px">'+stackBar+'</div>'
     +'<div style="display:flex;align-items:flex-start">'+pipeStats+'</div>';
   var yrSel='<select style="background:var(--bg-in);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:6px 12px;font-size:14px;font-weight:700;cursor:pointer" onchange="vReports(this.value)">'+allYrs.map(function(y){return'<option value="'+y+'"'+(!isAll&&y===yrS?' selected':'')+'>'+y+'</option>';}).join('')+'<option value="all"'+(isAll?' selected':'')+'>Od začátku</option></select>';
-  html('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px"><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Reporty</h1>'+yrSel+'</div>'
+  function kpiTile(label,val,color){
+    return '<div class="sc" style="border-top:3px solid '+color+';cursor:default"><div class="mono" style="font-size:20px;font-weight:800;color:'+color+';margin-bottom:5px">'+val+'</div><div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;font-weight:700">'+label+'</div></div>';
+  }
+  html('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px"><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Statistiky</h1>'+yrSel+'</div>'
     +'<div class="g6" style="margin-bottom:22px">'
-    +'<div class="sc"><div class="mono" style="font-size:20px;font-weight:800;color:var(--ac);margin-bottom:4px">'+(ar?fmtM(ar):'—')+'</div><div style="font-size:12px;color:#64748b">Prům. hod. sazba</div></div>'
-    +'<div class="sc"><div class="mono" style="font-size:20px;font-weight:800;color:#10b981;margin-bottom:4px">'+fmtM(tr)+'</div><div style="font-size:12px;color:#64748b">Celkové tržby (obrat)</div></div>'
-    +'<div class="sc"><div class="mono" style="font-size:20px;font-weight:800;color:#3b82f6;margin-bottom:4px">'+fmtM(invoiced)+'</div><div style="font-size:12px;color:#64748b">Vyfakturováno (daň. základ)</div></div>'
-    +'<div class="sc"><div class="mono" style="font-size:20px;font-weight:800;color:#ef4444;margin-bottom:4px">'+fmtM(te)+'</div><div style="font-size:12px;color:#64748b">Celkové náklady</div></div>'
-    +'<div class="sc"><div class="mono" style="font-size:20px;font-weight:800;color:'+(np>=0?'#10b981':'#ef4444')+';margin-bottom:4px">'+fmtM(np)+'</div><div style="font-size:12px;color:#64748b">Čistý zisk</div></div>'
-    +'<div class="sc"><div class="mono" style="font-size:20px;font-weight:800;color:#8b5cf6;margin-bottom:4px">'+fmtDur(tt)+'</div><div style="font-size:12px;color:#64748b">Odpracováno</div></div>'
+    +kpiTile('Prům. hod. sazba',ar?fmtM(ar):'—','var(--ac)')
+    +kpiTile('Celkové tržby (obrat)',fmtM(tr),'#10b981')
+    +kpiTile('Vyfakturováno (daň. základ)',fmtM(invoiced),'#3b82f6')
+    +kpiTile('Celkové náklady',fmtM(te),'#ef4444')
+    +kpiTile('Čistý zisk',fmtM(np),np>=0?'#10b981':'#ef4444')
+    +kpiTile('Odpracováno',fmtDur(tt),'#8b5cf6')
     +'</div>'
     +'<div class="g2" style="margin-bottom:18px">'
-    +'<div class="card"><div class="st">Tržby — '+yrLbl+'</div><div class="cbar">'+bars+'</div><div style="display:flex;gap:16px;font-size:11px;margin-top:6px"><span style="display:flex;align-items:center;gap:5px;color:#64748b"><span style="width:10px;height:10px;background:#3b82f6;border-radius:2px;display:inline-block"></span> Vyfakturováno (dle vystavení)</span><span style="display:flex;align-items:center;gap:5px;color:#64748b"><span style="width:10px;height:10px;background:#10b981;border-radius:2px;display:inline-block"></span> Zaplaceno'+(cashYr>0?' / přijato':'')+' (dle data platby)</span></div></div>'
+    +'<div class="card"><div class="st">Tržby — '+yrLbl+'</div><div class="cbar" style="border-bottom:1px solid var(--bd);margin-bottom:22px">'+bars+'</div><div style="display:flex;gap:16px;font-size:11px"><span style="display:flex;align-items:center;gap:6px;color:var(--tx3)"><span class="dot" style="background:#3b82f6"></span>Vyfakturováno (dle vystavení)</span><span style="display:flex;align-items:center;gap:6px;color:var(--tx3)"><span class="dot" style="background:#10b981"></span>Zaplaceno'+(cashYr>0?' / přijato':'')+' (dle data platby)</span></div></div>'
     +'<div class="card"><div class="st">Tržby dle klienta — '+yrLbl+'</div>'+(cbars||'<div style="color:#475569;font-size:13px;text-align:center;padding:30px 0">Žádná data</div>')+'</div>'
     +'</div>'
     +'<div class="g2" style="margin-bottom:18px">'
