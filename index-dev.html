@@ -187,6 +187,8 @@ select.inp option{background:var(--bg-in)}
 <script>
 window.onerror=function(msg,src,line,col,err){document.body.innerHTML='<div style="background:#f8fafc;color:#dc2626;padding:40px;font-family:sans-serif;min-height:100vh"><h2>Chyba aplikace</h2><p>'+msg+'</p><small>Řádek: '+line+'</small></div>';return false;};
 const DB={clients:[],orders:[],entries:[],invoices:[],expenses:[],notes:[],todos:[]};
+const TODO_COLORS=['','#ef4444','#f97316','#fbbf24','#10b981','#3b82f6','#8b5cf6'];
+let _todoDragId=null,_todoColorOpen=null;
 const DEV_MODE=true;
 const DEV_DB_KEY='mgmt_dev_db';
 const SAMPLE_DATA={
@@ -232,9 +234,9 @@ const SAMPLE_DATA={
     {id:3,orderId:4,text:'Platba přijata v hotovosti na schůzce.',created:'2026-07-01'}
   ],
   todos:[
-    {id:1,text:'Poslat nabídku Evě Malé',done:false,created:'2026-07-20'},
-    {id:2,text:'Zkontrolovat platbu za fakturu 2026-002',done:false,created:'2026-07-25'},
-    {id:3,text:'Objednat vizitky',done:true,created:'2026-07-10'}
+    {id:1,text:'Poslat nabídku Evě Malé',done:false,created:'2026-07-20',color:'#3b82f6',order:10},
+    {id:2,text:'Zkontrolovat platbu za fakturu 2026-002',done:false,created:'2026-07-25',color:'#ef4444',order:20},
+    {id:3,text:'Objednat vizitky',done:true,created:'2026-07-10',color:'',order:30}
   ]
 };
 function devLoad(){try{var raw=LS.getItem(DEV_DB_KEY);return raw?JSON.parse(raw):JSON.parse(JSON.stringify(SAMPLE_DATA));}catch(e){return JSON.parse(JSON.stringify(SAMPLE_DATA));}}
@@ -279,6 +281,8 @@ const gc=id=>DB.clients.find(c=>c.id===Number(id));
 const go=id=>DB.orders.find(o=>o.id===Number(id));
 const expSum=oid=>DB.expenses.filter(x=>x.orderId===oid).reduce((s,x)=>s+(x.amount||0),0);
 function isNoInv(o){return o&&(o.noInvoice===true||o.noInvoice==='true'||o.noInvoice==='TRUE'||o.noInvoice===1||o.noInvoice==='1');}
+function isDone(t){return t&&(t.done===true||t.done==='true'||t.done==='TRUE'||t.done===1||t.done==='1');}
+function todoOrderVal(t){return(t&&t.order!==undefined&&t.order!==null&&t.order!=='')?Number(t.order):-(t?t.id:0);}
 function cashOrders(yrS){return DB.orders.filter(function(o){if(!isNoInv(o))return false;var pd=normDate(o.paidDate);if(!pd)return false;return yrS?String(pd).slice(0,4)===String(yrS):true;});}
 function cashSum(yrS){return cashOrders(yrS).reduce(function(s,o){return s+(o.price||0);},0);}
 // Coolicons (krystonschwarze/coolicons, MIT) — inline SVG, currentColor
@@ -564,6 +568,28 @@ function printInv(id){
   w.document.close();
 }
 
+function todoColorStyle(c){
+  if(!c)return{bg:'var(--bg-card)',bd:'var(--bd)',stripe:'transparent'};
+  return{bg:c+'1a',bd:c+'40',stripe:c};
+}
+function todoTileHTML(t,draggable){
+  var td=isDone(t);var cs=todoColorStyle(t.color);
+  var swatches=TODO_COLORS.map(function(c){
+    return '<div onclick="event.stopPropagation();setTodoColor('+t.id+',\''+c+'\')" title="'+(c?c:'Bez barvy')+'" style="width:16px;height:16px;border-radius:50%;cursor:pointer;flex-shrink:0;border:2px solid '+((t.color||'')===c?'var(--tx)':'var(--bd)')+';background:'+(c||'var(--bg-card)')+';'+(c?'':'background-image:linear-gradient(45deg,transparent 45%,#94a3b8 45%,#94a3b8 55%,transparent 55%)')+'"></div>';
+  }).join('');
+  var picker=_todoColorOpen===t.id?'<div style="display:flex;gap:7px;margin-top:9px" onclick="event.stopPropagation()">'+swatches+'</div>':'';
+  return '<div '+(draggable?'draggable="true" ondragstart="todoDragStart(event,'+t.id+')" ondragover="event.preventDefault()" ondrop="todoDrop(event,'+t.id+')" ondragend="todoDragEnd(event)"':'')+' style="display:flex;align-items:flex-start;gap:10px;padding:13px 14px;margin-bottom:8px;border-radius:10px;background:'+cs.bg+';border:1px solid '+cs.bd+';border-left:4px solid '+cs.stripe+';'+(draggable?'cursor:grab':'')+'">'
+    +(draggable?'<span style="color:#94a3b8;font-size:13px;line-height:1.4;padding-top:4px;user-select:none;cursor:grab" title="Přetáhnout pro změnu pořadí">⠿</span>':'<span style="width:13px;flex-shrink:0"></span>')
+    +'<button onclick="toggleTodo('+t.id+')" style="margin-top:2px;width:20px;height:20px;border-radius:6px;border:2px solid '+(td?'#10b981':'var(--bd)')+';background:'+(td?'#10b981':'transparent')+';cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;padding:0">'+(td?ic('check',13):'')+'</button>'
+    +'<div style="flex:1;min-width:0">'
+      +'<div style="font-size:16px;font-weight:700;line-height:1.35;'+(td?'text-decoration:line-through;color:#64748b':'color:var(--tx)')+'">'+e(t.text)+'</div>'
+      +picker
+    +'</div>'
+    +'<button onclick="toggleTodoColorPicker('+t.id+')" title="Barva" aria-label="Změnit barvu úkolu" style="margin-top:2px;width:16px;height:16px;border-radius:50%;border:2px solid var(--bd);background:'+(t.color||'transparent')+';cursor:pointer;flex-shrink:0;padding:0"></button>'
+    +'<button class="btn bd btn-sm" style="padding:2px 7px" onclick="delTodo('+t.id+')" aria-label="Smazat úkol">'+ic('trash')+'</button>'
+    +'</div>';
+}
+
 // ═══ VIEWS ═══════════════════════════════════════════════════
 function vDash(){
   var act=DB.orders.filter(function(o){return o.status==='active';});
@@ -575,14 +601,9 @@ function vDash(){
   var monthMinutes=DB.entries.filter(function(x){return String(x.date||'').startsWith(curMonthKey);}).reduce(function(s,x){return s+(x.duration||0);},0);
   var pend=DB.invoices.filter(function(i){return i.status!=='paid'&&i.dueDate&&new Date(i.dueDate)<now;});
   var warn=pend.length?'<div style="display:flex;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:14px 18px;margin-bottom:20px;align-items:center;gap:14px"><span style="font-size:20px">⚠️</span><div><div style="font-weight:700;color:#d97706">'+pend.length+' nezaplacen'+(pend.length===1?'á faktura':pend.length<5?'é faktury':'ých faktur')+'</div><div style="font-size:12px;color:#92400e">'+fmtM(pend.reduce(function(s,i){return s+(i.amount||0);},0))+'</div></div><button class="btn bg btn-sm" style="margin-left:auto" onclick="sv(\'invoices\')">Zobrazit</button></div>':'';
-  var todos=DB.todos.slice().sort(function(a,b){if(!!a.done!==!!b.done)return a.done?1:-1;return b.id-a.id;});
-  var todosH=todos.map(function(t){
-    return '<div style="display:flex;align-items:center;gap:11px;padding:9px 4px;border-bottom:1px solid var(--bd)">'
-      +'<button onclick="toggleTodo('+t.id+')" style="width:19px;height:19px;border-radius:6px;border:2px solid '+(t.done?'#10b981':'var(--bd)')+';background:'+(t.done?'#10b981':'transparent')+';cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;padding:0">'+(t.done?ic('check',12):'')+'</button>'
-      +'<div style="flex:1;font-size:13px;'+(t.done?'text-decoration:line-through;color:#64748b':'color:var(--tx)')+'">'+e(t.text)+'</div>'
-      +'<button class="btn bd btn-sm" style="padding:2px 7px" onclick="delTodo('+t.id+')" aria-label="Smazat úkol">'+ic('trash')+'</button>'
-      +'</div>';
-  }).join('');
+  var notDoneT=DB.todos.filter(function(t){return !isDone(t);}).sort(function(a,b){return todoOrderVal(a)-todoOrderVal(b);});
+  var doneT=DB.todos.filter(function(t){return isDone(t);}).sort(function(a,b){return b.id-a.id;});
+  var todosH=notDoneT.map(function(t){return todoTileHTML(t,true);}).join('')+doneT.map(function(t){return todoTileHTML(t,false);}).join('');
   html('<div style="margin-bottom:28px"><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Přehled</h1><p style="color:#475569;font-size:14px;margin-top:4px">'+new Date().toLocaleDateString('cs-CZ',{weekday:'long',year:'numeric',month:'long',day:'numeric'})+'</p></div>'+
   '<div class="mpanel" style="margin-bottom:22px;grid-template-columns:repeat(3,1fr)">'+
   '<div class="mc" onclick="sv(\'orders\')"><div class="lbl" style="margin-bottom:8px">Aktivní zakázky</div><div class="mono" style="font-size:26px;font-weight:800;color:var(--ac)">'+act.length+'</div></div>'+
@@ -1295,14 +1316,40 @@ async function delNote(id,oid){confirmAction('Smazat tuto poznámku?','Smazat',a
 function addTodoInline(){
   var inp=$('todo-inp');if(!inp)return;var txt=inp.value.trim();if(!txt)return;
   inp.value='';
-  mut('create','todos',{data:{text:txt,done:false,created:today()}});
+  mut('create','todos',{data:{text:txt,done:false,created:today(),color:'',order:-Date.now()}});
 }
 async function toggleTodo(id){
   var t=DB.todos.find(function(x){return x.id===id;});if(!t)return;
-  await mut('update','todos',{id:id,data:Object.assign({},t,{done:!t.done})});
+  await mut('update','todos',{id:id,data:Object.assign({},t,{done:!isDone(t)})});
 }
 function delTodo(id){
   confirmAction('Smazat tento úkol?','Smazat',async function(){await mut('delete','todos',{id:id});});
+}
+function toggleTodoColorPicker(id){_todoColorOpen=(_todoColorOpen===id)?null:id;render();}
+async function setTodoColor(id,color){
+  var t=DB.todos.find(function(x){return x.id===id;});if(!t)return;
+  _todoColorOpen=null;
+  await mut('update','todos',{id:id,data:Object.assign({},t,{color:color})});
+}
+function todoDragStart(ev,id){_todoDragId=id;try{ev.dataTransfer.effectAllowed='move';ev.dataTransfer.setData('text/plain',String(id));}catch(err){}}
+function todoDragEnd(){_todoDragId=null;}
+async function todoDrop(ev,targetId){
+  ev.preventDefault();
+  var dragId=_todoDragId;_todoDragId=null;
+  if(!dragId||dragId===targetId)return;
+  var notDone=DB.todos.filter(function(t){return !isDone(t);}).sort(function(a,b){return todoOrderVal(a)-todoOrderVal(b);});
+  var fromIdx=notDone.findIndex(function(t){return t.id===dragId;});
+  var toIdx=notDone.findIndex(function(t){return t.id===targetId;});
+  if(fromIdx===-1||toIdx===-1)return;
+  var moved=notDone.splice(fromIdx,1)[0];
+  notDone.splice(toIdx,0,moved);
+  var changed=[];
+  notDone.forEach(function(t,i){
+    var newOrder=i*10;
+    if(Number(t.order)!==newOrder){t.order=newOrder;changed.push(t);}
+  });
+  render();
+  for(var i=0;i<changed.length;i++){var t=changed[i];await mut('update','todos',{id:t.id,data:Object.assign({},t,{order:t.order})});}
 }
 async function setIS(id,status){
   var i=DB.invoices.find(function(x){return x.id===id;});if(!i)return;
