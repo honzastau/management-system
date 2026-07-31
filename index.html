@@ -189,8 +189,8 @@ window.onerror=function(msg,src,line,col,err){document.body.innerHTML='<div styl
 const DB={clients:[],orders:[],entries:[],invoices:[],expenses:[],notes:[],todos:[]};
 const TODO_COLORS=['','#ef4444','#f97316','#fbbf24','#10b981','#3b82f6','#8b5cf6'];
 let _todoDragId=null;
-let curView='dashboard';let TS={running:false,orderId:null,elapsed:0,iv:null};
-let FC='#f59e0b';let INV_ITEMS=[];let SEARCH='';let confirmCb=null;var _TTMAP={};
+let curView='dashboard';let TS={running:false,orderId:null,elapsed:0,iv:null,startedAt:null,desc:''};
+let FC='#f59e0b';let INV_ITEMS=[];let SEARCH='';let confirmCb=null;var _TTMAP={};let TIME_SEL=null;
 var INV_FILTER={field:'duzp',from:'',to:''};
 var INV_EDIT_ID=null;
 var _EDIT_INV=null;
@@ -281,7 +281,7 @@ async function loadAll(){
   html('<div style="text-align:center;padding:80px;color:#475569">⟳ Načítám data…</div>');
   try{var d=await apiFetch({action:'getAll'});
     DB.clients=d.clients||[];DB.orders=d.orders||[];DB.entries=d.entries||[];DB.invoices=normalizeInvoices(d.invoices||[]);DB.expenses=d.expenses||[];DB.notes=d.notes||[];DB.todos=d.todos||[];
-    hideErr();badges();render();
+    hideErr();badges();restoreTimer();render();
   }catch(err){showErr(err.message);html('<div style="text-align:center;padding:80px;color:#475569">Chyba načítání.<br><small>'+e(err.message)+'</small></div>');}
 }
 
@@ -308,8 +308,8 @@ function confirmAction(msg,label,cb){
 }
 function closeConfirm(){$('confirm-ov').classList.remove('open');}
 
-function nav(el){document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('act');});el.classList.add('act');curView=el.dataset.v;SEARCH='';render();closeSidebar();}
-function sv(v){document.querySelectorAll('.ni').forEach(function(n){n.classList.toggle('act',n.dataset.v===v);});curView=v;SEARCH='';render();}
+function nav(el){document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('act');});el.classList.add('act');curView=el.dataset.v;SEARCH='';TIME_SEL=null;render();closeSidebar();}
+function sv(v){document.querySelectorAll('.ni').forEach(function(n){n.classList.toggle('act',n.dataset.v===v);});curView=v;SEARCH='';TIME_SEL=null;render();}
 function render(){
   var map={dashboard:vDash,clients:vClients,orders:vOrders,archive:vArchive,time:vTime,invoices:vInvoices,reports:vReports,settings:vSettings};
   if(map[curView])map[curView]();
@@ -332,24 +332,47 @@ function toggleSidebar(){$('sidebar').classList.toggle('open');$('sidebar-ov').c
 function closeSidebar(){$('sidebar').classList.remove('open');$('sidebar-ov').classList.remove('open');}
 
 
+const TIMER_KEY='mgmt_timer';
+function persistTimer(){
+  if(TS.running)LS.setItem(TIMER_KEY,JSON.stringify({orderId:TS.orderId,startedAt:TS.startedAt,desc:TS.desc||''}));
+  else LS.setItem(TIMER_KEY,'');
+}
+function timerTick(){
+  TS.elapsed=Math.floor((Date.now()-TS.startedAt)/1000);
+  var d1=$('tdisp');if(d1)d1.textContent=fmtT(TS.elapsed);
+  var d2=$('tdisp-inline');if(d2)d2.textContent=fmtT(TS.elapsed);
+  var d3=$('ord-t-'+TS.orderId);if(d3)d3.textContent=fmtT(ts(TS.orderId)+TS.elapsed);
+}
+function restoreTimer(){
+  if(TS.running)return;
+  var raw=LS.getItem(TIMER_KEY);if(!raw)return;
+  var s;try{s=JSON.parse(raw);}catch(e){return;}
+  if(!s||!s.orderId||!s.startedAt)return;
+  var o=go(s.orderId);
+  TS={running:true,orderId:s.orderId,startedAt:s.startedAt,elapsed:Math.floor((Date.now()-s.startedAt)/1000),iv:null,desc:s.desc||''};
+  TS.iv=setInterval(timerTick,1000);
+  $('timer-bar').style.display='flex';$('td').style.background=(o&&o.color||'#f59e0b');
+  $('td').style.boxShadow='0 0 10px '+((o&&o.color||'#f59e0b'))+'88';$('ton').textContent=(o&&o.name||'');
+  if($('tdesc'))$('tdesc').value=TS.desc;
+  timerTick();
+}
 function startTimerInline(oid){
   if(TS.running)return;
   var descEl=$('tdesc-start-'+oid);
   var desc=descEl?descEl.value:'';
-  TS={running:true,orderId:oid,elapsed:0,desc:desc};
-  TS.iv=setInterval(function(){
-    TS.elapsed++;
-    var el=$('tdisp-inline');if(el)el.textContent=fmtT(TS.elapsed);
-  },1000);
+  TS={running:true,orderId:oid,startedAt:Date.now(),elapsed:0,iv:null,desc:desc};
+  persistTimer();
+  TS.iv=setInterval(timerTick,1000);
   $('timer-bar').style.display='none';
   vOrderDetail(oid);
 }
 async function stopTimerInline(oid){
   clearInterval(TS.iv);
-  var elapsed=TS.elapsed;var orderId=TS.orderId;
+  var elapsed=Math.floor((Date.now()-TS.startedAt)/1000);var orderId=TS.orderId;
   var descEl=$('tdesc-inline');
   var desc=(descEl&&descEl.value)||TS.desc||'Práce';
-  TS={running:false,orderId:null,elapsed:0,iv:null,desc:''};
+  TS={running:false,orderId:null,elapsed:0,iv:null,startedAt:null,desc:''};
+  persistTimer();
   $('timer-bar').style.display='none';
   if(elapsed>0){
     await mut('create','entries',{data:{orderId:orderId,description:desc,duration:elapsed,date:today()}});
@@ -359,19 +382,24 @@ async function stopTimerInline(oid){
 }
 function cancelTimer(){
   clearInterval(TS.iv);
-  TS={running:false,orderId:null,elapsed:0,iv:null,desc:''};
+  TS={running:false,orderId:null,elapsed:0,iv:null,startedAt:null,desc:''};
+  persistTimer();
   $('timer-bar').style.display='none';
   render();
 }
 function startTimer(oid){
-  if(TS.running)return;var o=go(oid);TS={running:true,orderId:oid,elapsed:0};
-  TS.iv=setInterval(function(){TS.elapsed++;$('tdisp').textContent=fmtT(TS.elapsed);},1000);
+  if(TS.running)return;var o=go(oid);
+  TS={running:true,orderId:oid,startedAt:Date.now(),elapsed:0,iv:null,desc:''};
+  persistTimer();
+  TS.iv=setInterval(timerTick,1000);
   $('timer-bar').style.display='flex';$('td').style.background=(o&&o.color||'#f59e0b');
   $('td').style.boxShadow='0 0 10px '+((o&&o.color||'#f59e0b'))+'88';$('ton').textContent=(o&&o.name||'');render();
 }
 async function stopTimer(){
-  clearInterval(TS.iv);var oid=TS.orderId,elapsed=TS.elapsed;
-  TS={running:false,orderId:null,elapsed:0,iv:null};$('timer-bar').style.display='none';
+  clearInterval(TS.iv);var oid=TS.orderId,elapsed=Math.floor((Date.now()-TS.startedAt)/1000);
+  TS={running:false,orderId:null,elapsed:0,iv:null,startedAt:null,desc:''};
+  persistTimer();
+  $('timer-bar').style.display='none';
   if(elapsed>0){var desc=$('tdesc').value||'Práce';$('tdesc').value='';
     await mut('create','entries',{data:{orderId:oid,description:desc,duration:elapsed,date:today()}});toast('Čas uložen','success');
   }else render();
@@ -889,7 +917,7 @@ function vOrderDetail(id){
     return '<tr><td class="mono" style="font-size:12px;color:#64748b">'+x.date+'</td>'
       +'<td style="font-size:12px">'+e(x.description)+'</td>'
       +'<td class="mono" style="color:#8b5cf6;font-weight:700">'+fmtDur(x.duration)+'</td>'
-      +'<td><button class="btn bd btn-sm" style="padding:2px 7px;font-size:11px" onclick="delE('+x.id+','+o.id+')">'+ic('trash')+'</button></td></tr>';
+      +'<td><div style="display:flex;gap:4px;justify-content:flex-end"><button class="btn bg btn-sm" style="padding:2px 7px;font-size:11px" onclick="openEM('+o.id+','+x.id+')" title="Upravit">'+ic('edit')+'</button><button class="btn bd btn-sm" style="padding:2px 7px;font-size:11px" onclick="delE('+x.id+','+o.id+')">'+ic('trash')+'</button></div></td></tr>';
   }).join('');
   var exps=DB.expenses.filter(function(x){return x.orderId===o.id;}).sort(function(a,b){return b.id-a.id;});
   var expsH=exps.map(function(x){
@@ -990,11 +1018,31 @@ function vArchive(){
 
 function vTime(){
   var by=DB.orders.map(function(o){return {o:o,s:ts(o.id),n:DB.entries.filter(function(x){return x.orderId===o.id;}).length};}).filter(function(x){return x.n>0;});
-  var sb=by.map(function(b){var o=b.o;var cl=gc(o.clientId);var isR=TS.running&&TS.orderId===o.id;
-    return '<div class="card" style="padding:14px;border-top:2px solid '+e(o.color)+';cursor:pointer" onclick="vOrderDetail('+o.id+')"><div style="font-size:13px;font-weight:700;margin-bottom:2px">'+e(o.name)+'</div><div style="font-size:11px;color:#64748b;margin-bottom:8px">'+e((cl&&cl.company||cl&&cl.name||'—'))+'</div><div class="mono" style="font-size:20px;font-weight:800;color:'+e(o.color)+'">'+fmtDur(b.s)+'</div><div style="font-size:11px;color:#475569;margin:2px 0 8px">'+b.n+' záznamů</div>'+(isR?'<div class="mono" style="font-size:11px;color:#10b981;text-align:center;font-weight:700">● Aktivní</div>':o.status==='active'?'<button class="btn bs btn-sm" style="width:100%" onclick="event.stopPropagation();startTimer('+o.id+')">'+ic('play')+'Spustit</button>':'')+'</div>';}).join('');
-  var rows=DB.entries.slice().reverse().map(function(x){var o=go(x.orderId);return '<tr><td class="mono" style="font-size:12px;color:#64748b;white-space:nowrap">'+x.date+'</td><td><div style="display:flex;align-items:center;gap:7px"><span class="dot" style="background:'+e((o&&o.color||'#475569'))+'"></span><span style="font-size:12px;font-weight:600">'+e((o&&o.name||'?'))+'</span></div></td><td style="color:#94a3b8;font-size:12px">'+e(x.description)+'</td><td class="mono" style="color:#8b5cf6;font-weight:700;white-space:nowrap">'+fmtDur(x.duration)+'</td><td><button class="btn bd btn-sm" style="padding:3px 8px" onclick="delE('+x.id+')">'+ic('trash')+'</button></td></tr>';}).join('');
-  html('<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px"><div><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Sledování času</h1><p style="color:#475569;font-size:14px;margin-top:3px">Celkem '+fmtDur(DB.entries.reduce(function(s,x){return s+(x.duration||0);},0))+'</p></div><div style="display:flex;gap:10px"><button class="btn bp" onclick="openEM()">+ Ruční záznam</button><button class="btn bg btn-sm" onclick="expTime()" title="Export CSV">'+ic('download')+'</button></div></div><div style="display:grid;grid-template-columns:260px 1fr;gap:18px"><div style="display:flex;flex-direction:column;gap:10px">'+(sb||'<div style="color:#475569;font-size:13px">Zatím žádné záznamy.</div>')+'</div><div class="card" style="padding:0"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Datum</th><th>Zakázka</th><th>Popis</th><th>Délka</th><th></th></tr></thead><tbody>'+(rows||'<tr><td colspan="5" style="text-align:center;padding:36px;color:#475569">Žádné záznamy</td></tr>')+'</tbody></table></div></div></div>');
+  var sb=by.map(function(b){var o=b.o;var cl=gc(o.clientId);var isR=TS.running&&TS.orderId===o.id;var isSel=TIME_SEL===o.id;
+    var liveSec=isR?b.s+TS.elapsed:b.s;
+    var playBtn=o.status!=='active'?'<div style="width:44px;flex-shrink:0"></div>'
+      :isR
+        ?'<button class="btn bd" style="width:44px;height:44px;min-width:44px;min-height:44px;border-radius:50%;padding:0;flex-shrink:0;justify-content:center" onclick="event.stopPropagation();stopTimer()" aria-label="Zastavit časovač" title="Zastavit">'+ic('stop')+'</button>'
+        :'<button class="btn bs" style="width:44px;height:44px;min-width:44px;min-height:44px;border-radius:50%;padding:0;flex-shrink:0;justify-content:center" onclick="event.stopPropagation();startTimer('+o.id+')" aria-label="Spustit časovač" title="Spustit">'+ic('play')+'</button>';
+    return '<div class="card" style="padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer;'+(isR?'background:#062016;border-color:#0d3a25;':'')+(isSel?'border-color:var(--ac)':'')+'" onclick="selectTimeOrder('+o.id+')">'
+      +playBtn
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span class="dot" style="background:'+e(o.color)+'"></span>'+e(o.name)+'</div>'
+      +'<div style="font-size:11px;color:#64748b;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+e((cl&&cl.company||cl&&cl.name||'—'))+(isR?' · <span style="color:#34d399;font-weight:700">● Běží</span>':'')+'</div>'
+      +'</div>'
+      +'<div style="text-align:right;flex-shrink:0;display:flex;align-items:center;gap:8px">'
+      +'<div><div class="mono" id="ord-t-'+o.id+'" style="font-size:18px;font-weight:800;color:'+e(o.color)+'">'+fmtT(liveSec)+'</div>'
+      +'<div style="font-size:10px;color:#475569;margin-top:2px">'+b.n+' záznamů</div></div>'
+      +'<button class="btn bg btn-sm" style="padding:5px 7px" onclick="event.stopPropagation();vOrderDetail('+o.id+')" aria-label="Otevřít detail zakázky" title="Otevřít detail zakázky">›</button>'
+      +'</div>'
+      +'</div>';}).join('');
+  var timeEntries=TIME_SEL?DB.entries.filter(function(x){return x.orderId===TIME_SEL;}):DB.entries;
+  var selOrder=TIME_SEL?go(TIME_SEL):null;
+  var filterBar=TIME_SEL?'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:0 2px"><div style="font-size:12px;color:#64748b">Zobrazeny záznamy: <b style="color:var(--tx)">'+e(selOrder?selOrder.name:'?')+'</b></div><button class="btn bg btn-sm" onclick="TIME_SEL=null;render()">'+ic('close')+'Zobrazit vše</button></div>':'';
+  var rows=timeEntries.slice().reverse().map(function(x){var o=go(x.orderId);return '<tr><td class="mono" style="font-size:12px;color:#64748b;white-space:nowrap">'+x.date+'</td><td><div style="display:flex;align-items:center;gap:7px"><span class="dot" style="background:'+e((o&&o.color||'#475569'))+'"></span><span style="font-size:12px;font-weight:600">'+e((o&&o.name||'?'))+'</span></div></td><td style="color:#94a3b8;font-size:12px">'+e(x.description)+'</td><td class="mono" style="color:#8b5cf6;font-weight:700;white-space:nowrap">'+fmtDur(x.duration)+'</td><td><div style="display:flex;gap:5px;justify-content:flex-end"><button class="btn bg btn-sm" style="padding:3px 8px" onclick="openEM('+(x.orderId||0)+','+x.id+')" title="Upravit">'+ic('edit')+'</button><button class="btn bd btn-sm" style="padding:3px 8px" onclick="delE('+x.id+')">'+ic('trash')+'</button></div></td></tr>';}).join('');
+  html('<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px"><div><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Sledování času</h1><p style="color:#475569;font-size:14px;margin-top:3px">Celkem '+fmtDur(DB.entries.reduce(function(s,x){return s+(x.duration||0);},0))+'</p></div><div style="display:flex;gap:10px"><button class="btn bp" onclick="openEM()">+ Ruční záznam</button><button class="btn bg btn-sm" onclick="expTime()" title="Export CSV">'+ic('download')+'</button></div></div><div style="display:grid;grid-template-columns:260px 1fr;gap:18px"><div style="display:flex;flex-direction:column;gap:10px">'+(sb||'<div style="color:#475569;font-size:13px">Zatím žádné záznamy.</div>')+'</div><div>'+filterBar+'<div class="card" style="padding:0"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Datum</th><th>Zakázka</th><th>Popis</th><th>Délka</th><th></th></tr></thead><tbody>'+(rows||'<tr><td colspan="5" style="text-align:center;padding:36px;color:#475569">Žádné záznamy</td></tr>')+'</tbody></table></div></div></div></div>');
 }
+function selectTimeOrder(oid){TIME_SEL=(TIME_SEL===oid)?null:oid;render();}
 
 function vInvoices(){
   var sm={draft:{c:'#64748b',bg:'#f1f5f9',l:'Koncept'},sent:{c:'#d97706',bg:'#fef3c7',l:'Odesláno'},paid:{c:'#059669',bg:'#d1fae5',l:'Zaplaceno'}};
@@ -1365,12 +1413,23 @@ function openCM(id){
 }
 async function saveC(id){var name=$('fn').value.trim();if(!name)return toast('Zadej jméno','error');var data={name:name,company:$('fco').value,email:$('fem').value,phone:$('fph').value,address:$('fad').value,city:$('fci').value,zip:$('fzi').value,ico:$('fico').value,dic:$('fdic').value,notes:$('fno').value,color:FC};closeModal();if(id)await mut('update','clients',{id:id,data:Object.assign({},gc(id),data)});else await mut('create','clients',{data:data});toast(id?'Klient aktualizován':'Klient vytvořen','success');}
 
-function openEM(oid){
-  var ao=DB.orders.filter(function(o){return o.status==='active';});
-  var opts=ao.map(function(o){return '<option value="'+o.id+'"'+(o.id===oid?' selected':'')+'>'+e(o.name)+'</option>';}).join('');
-  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">Ruční záznam</div><div class="fr"><label class="lbl" for="fao">Zakázka</label><select class="inp" id="fao">'+opts+'</select></div><div class="fr"><label class="lbl" for="fed">Popis</label><input class="inp" id="fed" placeholder="Co jste dělali..."></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl" for="fh">Hodiny</label><input class="inp" type="number" min="0" id="fh" placeholder="0"></div><div class="fr" style="margin:0"><label class="lbl" for="fm">Minuty</label><input class="inp" type="number" min="0" max="59" id="fm" placeholder="0"></div></div><div class="fr"><label class="lbl" for="fdt">Datum</label><input class="inp" type="date" id="fdt" value="'+today()+'"></div><div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="saveE('+(oid||0)+')">Uložit</button></div>');
+function openEM(oid,editId){
+  var ent=editId?DB.entries.find(function(x){return x.id===editId;}):null;
+  var selOid=ent?ent.orderId:oid;
+  var ao=DB.orders.filter(function(o){return o.status==='active'||o.id===selOid;});
+  var opts=ao.map(function(o){return '<option value="'+o.id+'"'+(o.id===selOid?' selected':'')+'>'+e(o.name)+'</option>';}).join('');
+  var h=ent?Math.floor((ent.duration||0)/3600):'';
+  var m=ent?Math.floor(((ent.duration||0)%3600)/60):'';
+  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(ent?'Upravit záznam':'Ruční záznam')+'</div><div class="fr"><label class="lbl" for="fao">Zakázka</label><select class="inp" id="fao">'+opts+'</select></div><div class="fr"><label class="lbl" for="fed">Popis</label><input class="inp" id="fed" value="'+e((ent&&ent.description)||'')+'" placeholder="Co jste dělali..."></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl" for="fh">Hodiny</label><input class="inp" type="number" min="0" id="fh" value="'+h+'" placeholder="0"></div><div class="fr" style="margin:0"><label class="lbl" for="fm">Minuty</label><input class="inp" type="number" min="0" max="59" id="fm" value="'+m+'" placeholder="0"></div></div><div class="fr"><label class="lbl" for="fdt">Datum</label><input class="inp" type="date" id="fdt" value="'+(ent?ent.date:today())+'"></div><div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="saveE('+(oid||0)+','+(editId||0)+')">Uložit</button></div>');
 }
-async function saveE(returnOid){var dur=(Number($('fh').value)||0)*3600+(Number($('fm').value)||0)*60;if(!dur)return toast('Zadej dobu práce','error');var data={orderId:Number($('fao').value),description:$('fed').value||'Práce',duration:dur,date:$('fdt').value};closeModal();await mut('create','entries',{data:data});toast('Záznam uložen','success');if(returnOid)vOrderDetail(returnOid);}
+async function saveE(returnOid,editId){
+  var dur=(Number($('fh').value)||0)*3600+(Number($('fm').value)||0)*60;if(!dur)return toast('Zadej dobu práce','error');
+  var data={orderId:Number($('fao').value),description:$('fed').value||'Práce',duration:dur,date:$('fdt').value};
+  closeModal();
+  if(editId){var ex=DB.entries.find(function(x){return x.id===editId;});await mut('update','entries',{id:editId,data:Object.assign({},ex,data)});toast('Záznam upraven','success');}
+  else{await mut('create','entries',{data:data});toast('Záznam uložen','success');}
+  if(returnOid)vOrderDetail(returnOid);
+}
 
 function openExpM(oid){
   var cats=EXP_CATS.map(function(c){return '<option>'+c+'</option>';}).join('');
