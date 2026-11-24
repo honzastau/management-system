@@ -23,6 +23,8 @@ const COLUMNS = {
   expenses: ["id","orderId","description","amount","category","date"],
   notes:    ["id","orderId","text","created"],
   todos:    ["id","text","done","created","color","order","date"],
+  // Údaje firmy na fakturách (1 řádek) — sdílené mezi zařízeními. List se vytvoří sám při prvním načtení.
+  profile:  ["id","companyName","ico","dic","address","city","zip","email","phone","bankAccount","iban"],
 };
 
 // Sloupce které musí zůstat jako text (nesmí se konvertovat na číslo)

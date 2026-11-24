@@ -24,6 +24,7 @@ Stop hook v `~/.claude/settings.json` automaticky commituje a pushuje každou zm
 - `mut(action, sheet, payload)` — klasický zápis přes frontu `enqueue()` (zápisy jdou postupně, až po načtení dat). Update připravený z dat z cache se neodešle (hláška „zopakuj akci“, `SkipErr`).
 - `mutFast(sheet,id,data)` / `mutBatchFast(sheet,items)` — okamžitá odezva (úkoly, milníky, stav faktury, řazení úkolů); při chybě `loadAll(true)`. Batch posílá `action:"batch"`, se starým backendem fallback na jednotlivé požadavky.
 - `rerender()` — překreslí i detail zakázky/klienta (`_curDetail`).
+- Údaje firmy (faktury): list `profile` (1 řádek) přes `prof()`; fallback na `localStorage` `mgmt_profile` se starým backendem. `syncProfileUp()` po načtení nahraje lokální údaje, když je server nemá (jen create, nikdy nepřepíše).
 - `invsForOrder(oid)` — jediné místo pro „faktury k zakázce“ (orderId i orderIds).
 - Backend: `LockService` na zápisy, `CacheService` pro getAll (generační klíč, TTL 5 min — ruční úprava v Sheets se projeví až do 5 min nebo po „Zkusit znovu“), jeden `setNumberFormats` + `setValues` na řádek, id/hledání řádku jen ze sloupce A.
 - `items`, `orderIds`, `milestones` backend vrací jako JSON string, `normalizeInvoices()` parsuje.

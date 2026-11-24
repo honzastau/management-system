@@ -187,7 +187,8 @@ select.inp option{background:var(--bg-in)}
 <script>
 // Chyba v JS nesmí zbořit celou aplikaci — ukázat ji v chybové liště
 window.onerror=function(msg,src,line){try{var b=document.getElementById('err-bar'),m=document.getElementById('err-msg');if(b&&m){m.textContent='Chyba aplikace: '+msg+' (řádek '+line+')';b.style.display='flex';}}catch(x){}return false;};
-const DB={clients:[],orders:[],entries:[],invoices:[],expenses:[],notes:[],todos:[]};
+const DB={clients:[],orders:[],entries:[],invoices:[],expenses:[],notes:[],todos:[],profile:[]};
+var _hasProfileSheet=false; // backend umí list "profile" (údaje firmy sdílené mezi zařízeními)
 const TODO_COLORS=['','#ef4444','#f97316','#fbbf24','#10b981','#3b82f6','#8b5cf6'];
 let _todoDragId=null;
 let curView='dashboard';let TS={running:false,orderId:null,elapsed:0,iv:null,startedAt:null,desc:''};
@@ -317,7 +318,17 @@ var ICONS={
 function ic(n,sz){var s=sz||16;return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" style="vertical-align:-0.18em;flex-shrink:0;display:inline-block"><path d="'+ICONS[n]+'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';}
 // Další číslo faktury = nejvyšší existující pořadové číslo v roce + 1 (ne počet faktur — po smazání by vznikl duplikát)
 const nin=()=>{const y=String(new Date().getFullYear());const re=new RegExp('^'+y+'-(\\d+)$');const mx=DB.invoices.reduce(function(m,i){var r=re.exec(String(i.number||'').trim());return r?Math.max(m,Number(r[1])):m;},0);return y+'-'+String(mx+1).padStart(3,'0');};
-const prof=()=>{try{return JSON.parse(LS.getItem('mgmt_profile')||'{}');}catch(e){return{};}};
+// Údaje firmy: primárně ze serveru (list "profile"), jinak z localStorage tohoto zařízení
+const PROFILE_FIELDS=['companyName','ico','dic','address','city','zip','email','phone','bankAccount','iban'];
+function localProf(){try{return JSON.parse(LS.getItem('mgmt_profile')||'{}');}catch(e){return{};}}
+const prof=()=>{var r=DB.profile&&DB.profile[0];if(r){var o={};PROFILE_FIELDS.forEach(function(k){o[k]=r[k]==null?'':String(r[k]);});return o;}return localProf();};
+// Po načtení: server ještě údaje nemá, ale toto zařízení ano → nahrát je (jen vytvoří, nikdy nepřepíše)
+function syncProfileUp(){
+  if(DEV_MODE||!_hasProfileSheet||DB.profile.length)return;
+  var lp=localProf();if(!PROFILE_FIELDS.some(function(k){return lp[k];}))return;
+  var data={};PROFILE_FIELDS.forEach(function(k){data[k]=lp[k]||'';});
+  mut('create','profile',{data:data}).then(function(d){if(d)toast('Údaje firmy uloženy do tabulky — dostupné na všech zařízeních','success');}).catch(function(){});
+}
 function sFilter(items,q,fields){if(!q)return items;const s=q.toLowerCase();return items.filter(it=>fields.some(f=>{const v=typeof f==='function'?f(it):it[f];return String(v||'').toLowerCase().includes(s);}));}
 function searchBox(ph){return '<div class="search-bar"><input class="inp" id="search-inp" placeholder="'+ph+'" value="'+e(SEARCH)+'" oninput="onSearch(this)"></div>';}
 // Překreslení nahradí i vyhledávací pole — vrátit do něj fokus a kurzor
@@ -351,7 +362,7 @@ function normalizeInvoices(invs){
 // zápisy vždy čekají, než doběhne načtení čerstvých dat ze serveru.
 const CACHE_DB_KEY='mgmt_db_cache_v1';
 var _loadP=Promise.resolve();var _dbLoaded=false;var _curDetail=null;var _syncN=0;
-function applyData(d){DB.clients=d.clients||[];DB.orders=d.orders||[];DB.entries=d.entries||[];DB.invoices=normalizeInvoices(d.invoices||[]);DB.expenses=d.expenses||[];DB.notes=d.notes||[];DB.todos=d.todos||[];}
+function applyData(d){DB.clients=d.clients||[];DB.orders=d.orders||[];DB.entries=d.entries||[];DB.invoices=normalizeInvoices(d.invoices||[]);DB.expenses=d.expenses||[];DB.notes=d.notes||[];DB.todos=d.todos||[];DB.profile=d.profile||[];_hasProfileSheet=DEV_MODE||Array.isArray(d.profile);}
 function saveDbCache(){if(DEV_MODE||!_dbLoaded)return;try{localStorage.setItem(CACHE_DB_KEY,JSON.stringify({t:Date.now(),db:DB}));}catch(err){}}
 function readDbCache(){if(DEV_MODE)return null;try{var c=JSON.parse(localStorage.getItem(CACHE_DB_KEY)||'null');return c&&c.db?c:null;}catch(err){return null;}}
 // render() neumí detail zakázky/klienta — tohle překreslí i je
@@ -370,6 +381,7 @@ async function _loadAll(force){
     var d=await apiFetch(p);
     applyData(d);_dbLoaded=true;
     hideErr();badges();restoreTimer();rerender();saveDbCache();
+    syncProfileUp();
   }catch(err){
     showErr(err.message);
     if(!_dbLoaded&&!fromCache)html('<div style="text-align:center;padding:80px;color:#475569">Chyba načítání.<br><small>'+e(err.message)+'</small></div>');
@@ -1370,7 +1382,14 @@ function vSettings(){
   html('<div style="margin-bottom:28px"><h1 style="font-size:28px;font-weight:800;letter-spacing:-.04em">Nastavení firmy</h1><p style="color:#475569;font-size:14px;margin-top:4px">Údaje se zobrazí na fakturách</p></div><div class="card" style="max-width:640px"><div class="fr"><label class="lbl">Název firmy / Jméno</label><input class="inp" id="pName" value="'+e(p.companyName||'')+'"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">IČO</label><input class="inp" id="pIco" value="'+e(p.ico||'')+'"></div><div class="fr" style="margin:0"><label class="lbl">DIČ</label><input class="inp" id="pDic" value="'+e(p.dic||'')+'"></div></div><div class="fr"><label class="lbl">Adresa</label><input class="inp" id="pAddr" value="'+e(p.address||'')+'"></div><div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">Město</label><input class="inp" id="pCity" value="'+e(p.city||'')+'"></div><div class="fr" style="margin:0"><label class="lbl">PSČ</label><input class="inp" id="pZip" value="'+e(p.zip||'')+'"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl">Email</label><input class="inp" id="pEmail" value="'+e(p.email||'')+'"></div><div class="fr" style="margin:0"><label class="lbl">Telefon</label><input class="inp" id="pPhone" value="'+e(p.phone||'')+'"></div></div><div class="fr"><label class="lbl">Číslo účtu</label><input class="inp" id="pBank" value="'+e(p.bankAccount||'')+'" placeholder="123456789/0100"></div><div class="fr"><label class="lbl">IBAN (pro QR platbu)</label><input class="inp" id="pIban" value="'+e(p.iban||'')+'" placeholder="CZ65 0800 0000 0012 3456 7899"></div><div class="mfooter" style="margin-top:24px"><button class="btn bp" onclick="saveProfile()">💾 Uložit nastavení</button></div></div>');
 }
 
-function saveProfile(){var data={companyName:$('pName').value,ico:$('pIco').value,dic:$('pDic').value,address:$('pAddr').value,city:$('pCity').value,zip:$('pZip').value,email:$('pEmail').value,phone:$('pPhone').value,bankAccount:$('pBank').value,iban:$('pIban').value.replace(/\s/g,'')};LS.setItem('mgmt_profile',JSON.stringify(data));toast('Nastavení uloženo','success');}
+async function saveProfile(){
+  var data={companyName:$('pName').value,ico:$('pIco').value,dic:$('pDic').value,address:$('pAddr').value,city:$('pCity').value,zip:$('pZip').value,email:$('pEmail').value,phone:$('pPhone').value,bankAccount:$('pBank').value,iban:$('pIban').value.replace(/\s/g,'')};
+  LS.setItem('mgmt_profile',JSON.stringify(data));
+  if(!_hasProfileSheet){toast('Nastavení uloženo jen v tomto zařízení (backend zatím neumí sdílet)','info');return;}
+  var cur=DB.profile[0];
+  var d=cur?await mut('update','profile',{id:cur.id,data:Object.assign({},data,{id:cur.id})}):await mut('create','profile',{data:data});
+  if(d)toast('Nastavení uloženo — platí na všech zařízeních','success');
+}
 
 // ═══ ACTIONS ═════════════════════════════════════════════════
 async function archO(id){confirmAction('Archivovat tuto zakázku?','Archivovat',async function(){var o=go(id);if(o){await mut('update','orders',{id:id,data:Object.assign({},o,{status:'archived'})});toast('Zakázka archivována','success');sv('orders');}});}
