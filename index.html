@@ -309,6 +309,27 @@ function expStatusHTML(x,oid){
   return '<button class="btn bg btn-sm" style="padding:2px 8px;font-size:11px;font-weight:700;color:'+c+';white-space:nowrap" onclick="payExp('+x.id+','+oid+')" title="Označit jako zaplaceno dnes">'+t+' · zaplatit</button>';
 }
 // Faktury navázané na zakázku (orderId nebo orderIds) — jediné místo pro tuhle logiku
+// Kolik z faktury připadá na danou zakázku (pro "Zbývá dofakturovat" apod.).
+// 1 zakázka = celá částka. Více zakázek: položky s "oid" patří své zakázce; starší položky bez "oid"
+// se přiřadí podle názvu zakázky (popis/poznámka), zbytek se rozdělí poměrem cen zakázek. Data se nemění.
+function invOrderIdsOf(inv){return Array.isArray(inv.orderIds)&&inv.orderIds.length?inv.orderIds.map(Number):(inv.orderId?[Number(inv.orderId)]:[]);}
+function invAmtForOrder(inv,oid){
+  oid=Number(oid);var ids=invOrderIdsOf(inv);var amt=Number(inv.amount)||0;
+  if(ids.length<=1)return amt;
+  var items=Array.isArray(inv.items)?inv.items:[];if(!items.length)return amt/ids.length;
+  var alloc={},rest=0;ids.forEach(function(id){alloc[id]=0;});
+  items.forEach(function(it){
+    var t=(Number(it.qty)||0)*(Number(it.price)||0);var io=Number(it.oid);
+    if(io&&alloc.hasOwnProperty(io)){alloc[io]+=t;return;}
+    if(!io){
+      var m=ids.filter(function(id){var o=go(id);var n=o?String(o.name||'').trim():'';return n&&(String(it.note||'').trim()===n||String(it.desc||'').trim()===n);});
+      if(m.length===1){alloc[m[0]]+=t;return;}
+    }
+    rest+=t;
+  });
+  if(rest){var pt=ids.reduce(function(s,id){var o=go(id);return s+(o&&o.price||0);},0);ids.forEach(function(id){var o=go(id);alloc[id]+=pt>0?rest*((o&&o.price||0)/pt):rest/ids.length;});}
+  return Math.round((alloc[oid]||0)*100)/100;
+}
 function invsForOrder(oid){oid=Number(oid);return DB.invoices.filter(function(i){var ids=Array.isArray(i.orderIds)?i.orderIds.map(Number):[];return Number(i.orderId)===oid||ids.indexOf(oid)>=0;});}
 function isNoInv(o){return o&&(o.noInvoice===true||o.noInvoice==='true'||o.noInvoice==='TRUE'||o.noInvoice===1||o.noInvoice==='1');}
 function isDone(t){return t&&(t.done===true||t.done==='true'||t.done==='TRUE'||t.done===1||t.done==='1');}
@@ -787,9 +808,9 @@ function vOrders(){
     var dl=Math.ceil((new Date(o.deadline)-new Date())/86400000);
     var pct=o.deadline?Math.min(100,Math.max(0,(new Date()-new Date(o.created))/(new Date(o.deadline)-new Date(o.created))*100)):0;
     var ex=expSum(o.id);var profit=o.price-ex;
-    var oinvsPaid=!o.deadline?invsForOrder(o.id).filter(function(iv){return iv.status==='paid';}).reduce(function(s,iv){return s+(iv.amount||0);},0):0;
+    var oinvsPaid=!o.deadline?invsForOrder(o.id).filter(function(iv){return iv.status==='paid';}).reduce(function(s,iv){return s+invAmtForOrder(iv,o.id);},0):0;
     var oInvsCard=o.deadline&&o.price>0?invsForOrder(o.id):[];
-    var invoicedCard=oInvsCard.reduce(function(s,i){return s+(i.amount||0);},0);
+    var invoicedCard=oInvsCard.reduce(function(s,i){return s+invAmtForOrder(i,o.id);},0);
     var remainingCard=invoicedCard>0?o.price-invoicedCard:0;
     var bc=e(o.color);
     var ms=getMilestones(o);var msDone=ms.filter(function(m){return m.done;}).length;
@@ -1076,7 +1097,7 @@ function vOrderDetail(id){
   var tSec=ts(o.id);var ex=expSum(o.id);var profit=o.price-ex;
   var stColor=o.status==='completed'?'#059669':o.status==='archived'?'#475569':'#d97706';
   var oInvs=invsForOrder(o.id);
-  var invoicedTotal=oInvs.reduce(function(s,i){return s+(i.amount||0);},0);
+  var invoicedTotal=oInvs.reduce(function(s,i){return s+invAmtForOrder(i,o.id);},0);
   var remaining=o.price-invoicedTotal;
   var paidInv=oInvs.find(function(i){return i.status==='paid';});
   var sentInv=oInvs.find(function(i){return i.status==='sent'||i.status==='paid';});
@@ -1116,7 +1137,7 @@ function vOrderDetail(id){
     return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)">'
       +'<span class="mono" style="font-size:12px;color:#64748b;background:var(--bg-in);padding:3px 8px;border-radius:6px">'+e(inv.number)+'</span>'
       +'<span style="flex:1;font-size:13px">'+fmtD(inv.issued)+'</span>'
-      +'<span class="mono" style="font-weight:700">'+fmtM(inv.amount)+'</span>'
+      +(invOrderIdsOf(inv).length>1?'<span class="mono" style="font-weight:700" title="Podíl této zakázky na společné faktuře">'+fmtM(invAmtForOrder(inv,o.id))+' <span style="font-size:11px;color:#64748b;font-weight:400">z '+fmtM(inv.amount)+'</span></span>':'<span class="mono" style="font-weight:700">'+fmtM(inv.amount)+'</span>')
       +'<span style="font-size:11px;color:'+sc.c+';font-weight:700">'+sc.l+'</span>'
       +'<button class="btn bg btn-sm" style="padding:3px 8px" onclick="printInv('+inv.id+')" aria-label="Tisknout fakturu" title="Tisk">'+ic('printer')+'</button>'
       +'</div>';
@@ -1355,7 +1376,7 @@ function vReports(selYr){
   var eCatArr=Object.entries(eCats).sort(function(a,b){return b[1]-a[1];});
   var maxE=Math.max.apply(null,eCatArr.map(function(p){return p[1];}).concat([1]));
   var eCatH=eCatArr.map(function(p){return '<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:var(--tx2)">'+e(p[0])+'</span><span class="mono" style="color:#ef4444;font-weight:700">'+fmtM(p[1])+'</span></div><div class="pb"><div class="pf" style="width:'+(p[1]/maxE)*100+'%;background:#ef4444"></div></div></div>';}).join('');
-  var toInvOrds=DB.orders.filter(function(o){return o.status==='completed'&&o.deadline&&o.price>0&&!isNoInv(o);}).map(function(o){var linked=invsForOrder(o.id);var inv=linked.reduce(function(s,i){return s+(i.amount||0);},0);return{o:o,inv:inv,rem:o.price-inv};}).filter(function(x){return x.inv>0&&x.rem>0;}).sort(function(a,b){return b.rem-a.rem;});
+  var toInvOrds=DB.orders.filter(function(o){return o.status==='completed'&&o.deadline&&o.price>0&&!isNoInv(o);}).map(function(o){var linked=invsForOrder(o.id);var inv=linked.reduce(function(s,i){return s+invAmtForOrder(i,o.id);},0);return{o:o,inv:inv,rem:o.price-inv};}).filter(function(x){return x.inv>0&&x.rem>0;}).sort(function(a,b){return b.rem-a.rem;});
   var toInvTotal=toInvOrds.reduce(function(s,x){return s+x.rem;},0);
   var toInvH=toInvOrds.slice(0,8).map(function(x){var cl=gc(x.o.clientId);return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:12px"><span class="dot" style="background:'+e(x.o.color||'#f59e0b')+'"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(x.o.name)+'</span><span style="color:#64748b;flex-shrink:0;margin-right:8px">'+e(cl?cl.company||cl.name:'')+'</span><span class="mono" style="color:var(--ac);font-weight:700;flex-shrink:0">'+fmtM(x.rem)+'</span></div>';}).join('');
   var tByClient={};
@@ -1693,7 +1714,7 @@ function openIM(editId){
     if(Array.isArray(inv.items))rawItems=inv.items;
     else if(typeof inv.items==='string'&&inv.items){try{rawItems=JSON.parse(inv.items);}catch(e){rawItems=[];}}
   }
-  INV_ITEMS=rawItems.map(function(it){return{desc:it.desc||'',note:it.note||'',qty:Number(it.qty)||1,unit:it.unit||'ks',price:Number(it.price)||0};});
+  INV_ITEMS=rawItems.map(function(it){return{desc:it.desc||'',note:it.note||'',qty:Number(it.qty)||1,unit:it.unit||'ks',price:Number(it.price)||0,_oid:Number(it.oid)||undefined};});
   // Zakázky, které už svou položku mají (u úpravy faktury všechny propojené) — znovu se nepřidají
   INV_AUTO_DONE={};invOrderIds.forEach(function(id){INV_AUTO_DONE[id]=true;});
   var autoNum=inv?inv.number:nin();
@@ -1746,7 +1767,7 @@ function updateInvInfo(){
 // Odškrtnutí zakázky její položku odebere (i když byla upravená).
 var INV_AUTO_DONE={};
 function syncInvOrderItems(orders){
-  if(INV_EDIT_ID)return;
+  if(INV_EDIT_ID){renderII();return;}
   var ids=orders.map(function(o){return o.id;});var changed=false;
   INV_ITEMS=INV_ITEMS.filter(function(it){
     if(it._oid&&ids.indexOf(it._oid)<0){delete INV_AUTO_DONE[it._oid];changed=true;return false;}
@@ -1779,7 +1800,9 @@ function renderII(){
   var suggs=getItemSuggestions();
   var dlId='ii-sugg-list';
   var dl=suggs.length?'<datalist id="'+dlId+'">'+suggs.map(function(s){return '<option value="'+e(s.desc)+'">';}).join('')+'</datalist>':'';
+  var selOrds=getSelectedOrderIds().map(go).filter(Boolean);
   el.innerHTML=dl+INV_ITEMS.map(function(it,i){
+    var ordSel=selOrds.length>1?'<select class="inp" aria-label="Zakázka položky" onchange="INV_ITEMS['+i+']._oid=Number(this.value)||undefined" style="font-size:12px;padding-left:8px'+(it._oid?'':';color:#d97706')+'"><option value="">— zakázka —</option>'+selOrds.map(function(o){return '<option value="'+o.id+'"'+(Number(it._oid)===o.id?' selected':'')+'>'+e(o.name)+'</option>';}).join('')+'</select>':'';
     return '<div style="border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--bg-in)">'
       +'<div style="display:grid;grid-template-columns:1fr 70px 82px 110px 32px;gap:6px;margin-bottom:6px;align-items:center">'
       +'<input class="inp" list="'+dlId+'" placeholder="Položka *" value="'+e(it.desc)+'" oninput="updIIDesc('+i+',this.value)" style="font-weight:600">'
@@ -1788,7 +1811,9 @@ function renderII(){
       +'<input class="inp" id="ii-price-'+i+'" type="number" placeholder="Cena Kč" value="'+it.price+'" oninput="updII('+i+',\'price\',this.value)">'
       +'<button class="btn bd btn-sm" style="padding:0 8px;height:100%" onclick="remII('+i+')" aria-label="Odebrat položku">'+ic('trash')+'</button>'
       +'</div>'
+      +(ordSel?'<div style="display:grid;grid-template-columns:170px 1fr;gap:6px">'+ordSel:'')
       +'<input class="inp" placeholder="Popis (volitelné)" value="'+e(it.note||'')+'" oninput="updII('+i+',\'note\',this.value)" style="font-size:12px;color:#94a3b8">'
+      +(ordSel?'</div>':'')
       +'</div>';
   }).join('');
 }
@@ -1802,7 +1827,7 @@ function updIIDesc(i,v){
 }
 function calcItot(){var tot=INV_ITEMS.reduce(function(s,it){return s+(Number(it.qty)||0)*(Number(it.price)||0);},0);var el=$('itot');if(el)el.textContent='Celkem: '+fmtM(tot);}
 async function saveI(editId){
-  var items=INV_ITEMS.map(function(it){return{desc:it.desc,note:it.note||'',qty:Number(it.qty)||1,unit:it.unit||'ks',price:Number(it.price)||0};});
+  var items=INV_ITEMS.map(function(it){var r={desc:it.desc,note:it.note||'',qty:Number(it.qty)||1,unit:it.unit||'ks',price:Number(it.price)||0};if(it._oid)r.oid=Number(it._oid);return r;});
   var amount=items.reduce(function(s,it){return s+it.qty*it.price;},0);
   if(!amount)return toast('Přidej alespoň jednu položku s cenou','error');
   var oids=getSelectedOrderIds();
