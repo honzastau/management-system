@@ -46,6 +46,11 @@ Stop hook v `~/.claude/settings.json` automaticky commituje a pushuje každou zm
 - `expDueDays(x)` — dny do splatnosti nezaplaceného; Přehled ukazuje ≤5 dní oranžově, den splatnosti a po splatnosti červeně (`expWarn` ve `vDash`).
 - `openExpM(oid, editId)` / `saveExp(oid, editId)` — nový i úprava; `payExp(id)` — rychlé „zaplaceno dnes“ přes `mutFast`.
 - Past při náhledu: Edit hook otevírá upravený `index.html` v panelu jako `data:` URL **bez `?dev=1`** → běží proti reálným datům. Testovat jen v kartě s `http://127.0.0.1:PORT/index.html?dev=1`.
+
+### Záznamy času — začátek
+- Sloupec navíc `entries.startTime` (text `HH:MM`, v `TEXT_COLS`); den zůstává v `date`. Staré záznamy čas nemají.
+- Formulář `openEM`: pole „Začátek“ (`#fst`, datetime-local) místo Datum, nápověda konce `updEndHint()`. U úpravy nezměněný začátek uloží původní `startTime` (`data-orig`), takže starým záznamům nepřibude 00:00.
+- Časovač ukládá `date`/`startTime` z `TS.startedAt` (`tsDate`, `tsTime`). Tabulky ukazují `entWhen(x)`.
 ### Pasti v kódu
 - `render()` dispatch map **neobsahuje** `'orderDetail'` — volání `render()` z order detail view je no-op; použít `vOrderDetail(oid)` přímo
 - Průběžná zakázka = `!o.deadline` (žádný deadline)

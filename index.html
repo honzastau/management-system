@@ -218,7 +218,7 @@ const SAMPLE_DATA={
     {id:5,name:'SEO optimalizace',clientId:1,description:'Měsíční SEO optimalizace webu.',price:15000,currency:'CZK',deadline:'',created:'2026-03-01',noInvoice:false,paidDate:'',color:'#3b82f6',status:'archived',delivered:'',milestones:'[]'}
   ],
   entries:[
-    {id:1,orderId:1,description:'Návrh wireframů',duration:14400,date:'2026-06-18'},
+    {id:1,orderId:1,description:'Návrh wireframů',duration:14400,date:'2026-06-18',startTime:'08:30'},
     {id:2,orderId:1,description:'Implementace homepage',duration:21600,date:'2026-07-05'},
     {id:3,orderId:1,description:'Responsivní úpravy',duration:10800,date:'2026-07-18'},
     {id:4,orderId:2,description:'Návrh grafiky',duration:7200,date:'2026-05-20'},
@@ -560,14 +560,14 @@ function startTimerInline(oid){
 }
 async function stopTimerInline(oid){
   clearInterval(TS.iv);
-  var elapsed=Math.floor((Date.now()-TS.startedAt)/1000);var orderId=TS.orderId;
+  var elapsed=Math.floor((Date.now()-TS.startedAt)/1000);var orderId=TS.orderId;var stAt=TS.startedAt;
   var descEl=$('tdesc-inline');
   var desc=(descEl&&descEl.value)||TS.desc||'Práce';
   TS={running:false,orderId:null,elapsed:0,iv:null,startedAt:null,desc:''};
   persistTimer();
   $('timer-bar').style.display='none';
   if(elapsed>0){
-    await mut('create','entries',{data:{orderId:orderId,description:desc,duration:elapsed,date:today()}});
+    await mut('create','entries',{data:{orderId:orderId,description:desc,duration:elapsed,date:tsDate(stAt),startTime:tsTime(stAt)}});
     toast('Čas uložen: '+fmtT(elapsed),'success');
   }
   vOrderDetail(oid);
@@ -588,12 +588,12 @@ function startTimer(oid){
   $('td').style.boxShadow='0 0 10px '+((o&&o.color||'#f59e0b'))+'88';$('ton').textContent=(o&&o.name||'');render();
 }
 async function stopTimer(){
-  clearInterval(TS.iv);var oid=TS.orderId,elapsed=Math.floor((Date.now()-TS.startedAt)/1000);
+  clearInterval(TS.iv);var oid=TS.orderId,elapsed=Math.floor((Date.now()-TS.startedAt)/1000),stAt=TS.startedAt;
   TS={running:false,orderId:null,elapsed:0,iv:null,startedAt:null,desc:''};
   persistTimer();
   $('timer-bar').style.display='none';
   if(elapsed>0){var desc=$('tdesc').value||'Práce';$('tdesc').value='';
-    await mut('create','entries',{data:{orderId:oid,description:desc,duration:elapsed,date:today()}});toast('Čas uložen','success');
+    await mut('create','entries',{data:{orderId:oid,description:desc,duration:elapsed,date:tsDate(stAt),startTime:tsTime(stAt)}});toast('Čas uložen','success');
   }else render();
 }
 
@@ -1120,7 +1120,7 @@ function vOrderDetail(id){
   }).join('');
   var ents=DB.entries.filter(function(x){return x.orderId===o.id;}).sort(function(a,b){return b.id-a.id;});
   var entsH=ents.map(function(x){
-    return '<tr><td class="mono" style="font-size:12px;color:#64748b">'+x.date+'</td>'
+    return '<tr><td class="mono" style="font-size:12px;color:#64748b">'+entWhen(x)+'</td>'
       +'<td style="font-size:12px">'+e(x.description)+'</td>'
       +'<td class="mono" style="color:#8b5cf6;font-weight:700">'+fmtDur(x.duration)+'</td>'
       +'<td><div style="display:flex;gap:4px;justify-content:flex-end"><button class="btn bg btn-sm" style="padding:2px 7px;font-size:11px" onclick="openEM('+o.id+','+x.id+')" title="Upravit">'+ic('edit')+'</button><button class="btn bd btn-sm" style="padding:2px 7px;font-size:11px" onclick="delE('+x.id+','+o.id+')">'+ic('trash')+'</button></div></td></tr>';
@@ -1246,7 +1246,7 @@ function vTime(){
   var timeEntries=TIME_SEL?DB.entries.filter(function(x){return x.orderId===TIME_SEL;}):DB.entries;
   var selOrder=TIME_SEL?go(TIME_SEL):null;
   var filterBar=TIME_SEL?'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:0 2px"><div style="font-size:12px;color:#64748b">Zobrazeny záznamy: <b style="color:var(--tx)">'+e(selOrder?selOrder.name:'?')+'</b></div><button class="btn bg btn-sm" onclick="TIME_SEL=null;render()">'+ic('close')+'Zobrazit vše</button></div>':'';
-  function rowHtml(x,muted){var o=go(x.orderId);return '<tr'+(muted?' style="opacity:.5"':'')+'><td class="mono" style="font-size:12px;color:#64748b;white-space:nowrap">'+x.date+'</td><td><div style="display:flex;align-items:center;gap:7px"><span class="dot" style="background:'+e((o&&o.color||'#475569'))+'"></span><span style="font-size:12px;font-weight:600">'+e((o&&o.name||'?'))+'</span></div></td><td style="color:#94a3b8;font-size:12px">'+e(x.description)+'</td><td class="mono" style="color:#8b5cf6;font-weight:700;white-space:nowrap">'+fmtDur(x.duration)+'</td><td><div style="display:flex;gap:5px;justify-content:flex-end"><button class="btn bg btn-sm" style="padding:3px 8px" onclick="openEM('+(x.orderId||0)+','+x.id+')" title="Upravit">'+ic('edit')+'</button><button class="btn bd btn-sm" style="padding:3px 8px" onclick="delE('+x.id+')">'+ic('trash')+'</button></div></td></tr>';}
+  function rowHtml(x,muted){var o=go(x.orderId);return '<tr'+(muted?' style="opacity:.5"':'')+'><td class="mono" style="font-size:12px;color:#64748b;white-space:nowrap">'+entWhen(x)+'</td><td><div style="display:flex;align-items:center;gap:7px"><span class="dot" style="background:'+e((o&&o.color||'#475569'))+'"></span><span style="font-size:12px;font-weight:600">'+e((o&&o.name||'?'))+'</span></div></td><td style="color:#94a3b8;font-size:12px">'+e(x.description)+'</td><td class="mono" style="color:#8b5cf6;font-weight:700;white-space:nowrap">'+fmtDur(x.duration)+'</td><td><div style="display:flex;gap:5px;justify-content:flex-end"><button class="btn bg btn-sm" style="padding:3px 8px" onclick="openEM('+(x.orderId||0)+','+x.id+')" title="Upravit">'+ic('edit')+'</button><button class="btn bd btn-sm" style="padding:3px 8px" onclick="delE('+x.id+')">'+ic('trash')+'</button></div></td></tr>';}
   var splitByStatus=!TIME_SEL;
   var activeEntries=splitByStatus?timeEntries.filter(function(x){var o=go(x.orderId);return o&&o.status==='active';}):timeEntries;
   var doneEntries=splitByStatus?timeEntries.filter(function(x){var o=go(x.orderId);return !o||o.status!=='active';}):[];
@@ -1640,6 +1640,13 @@ function openCM(id){
 }
 async function saveC(id){var name=$('fn').value.trim();if(!name)return toast('Zadej jméno','error');var data={name:name,company:$('fco').value,email:$('fem').value,phone:$('fph').value,address:$('fad').value,city:$('fci').value,zip:$('fzi').value,ico:$('fico').value,dic:$('fdic').value,notes:$('fno').value,color:FC};closeModal();if(id)await mut('update','clients',{id:id,data:Object.assign({},gc(id),data)});else await mut('create','clients',{data:data});toast(id?'Klient aktualizován':'Klient vytvořen','success');}
 
+// Začátek záznamu času: date (YYYY-MM-DD) + startTime (HH:MM, staré záznamy nemají)
+function pad2(n){return (n<10?'0':'')+n;}
+function tsDate(ms){var d=new Date(ms);return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());}
+function tsTime(ms){var d=new Date(ms);return pad2(d.getHours())+':'+pad2(d.getMinutes());}
+function entWhen(x){return (x.date||'')+(x.startTime?' '+x.startTime:'');}
+function updEndHint(){var el=$('fend');if(!el)return;var v=$('fst').value;var dur=(Number($('fh').value)||0)*3600+(Number($('fm').value)||0)*60;
+  if(!v||!dur){el.textContent='';return;}var t=new Date(v).getTime()+dur*1000;el.textContent='Konec: '+(tsDate(t)!==v.slice(0,10)?fmtD(tsDate(t))+' ':'')+tsTime(t);}
 function openEM(oid,editId){
   var ent=editId?DB.entries.find(function(x){return x.id===editId;}):null;
   var selOid=ent?ent.orderId:oid;
@@ -1647,11 +1654,17 @@ function openEM(oid,editId){
   var opts=ao.map(function(o){return '<option value="'+o.id+'"'+(o.id===selOid?' selected':'')+'>'+e(o.name)+'</option>';}).join('');
   var h=ent?Math.floor((ent.duration||0)/3600):'';
   var m=ent?Math.floor(((ent.duration||0)%3600)/60):'';
-  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(ent?'Upravit záznam':'Ruční záznam')+'</div><div class="fr"><label class="lbl" for="fao">Zakázka</label><select class="inp" id="fao">'+opts+'</select></div><div class="fr"><label class="lbl" for="fed">Popis</label><input class="inp" id="fed" value="'+e((ent&&ent.description)||'')+'" placeholder="Co jste dělali..."></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl" for="fh">Hodiny</label><input class="inp" type="number" min="0" id="fh" value="'+h+'" placeholder="0"></div><div class="fr" style="margin:0"><label class="lbl" for="fm">Minuty</label><input class="inp" type="number" min="0" max="59" id="fm" value="'+m+'" placeholder="0"></div></div><div class="fr"><label class="lbl" for="fdt">Datum</label><input class="inp" type="date" id="fdt" value="'+(ent?ent.date:today())+'"></div><div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="saveE('+(oid||0)+','+(editId||0)+')">Uložit</button></div>');
+  var stVal=ent?(String(ent.date||today()).slice(0,10)+'T'+(ent.startTime||'00:00')):(today()+'T'+tsTime(Date.now()));
+  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(ent?'Upravit záznam':'Ruční záznam')+'</div><div class="fr"><label class="lbl" for="fao">Zakázka</label><select class="inp" id="fao">'+opts+'</select></div><div class="fr"><label class="lbl" for="fed">Popis</label><input class="inp" id="fed" value="'+e((ent&&ent.description)||'')+'" placeholder="Co jste dělali..."></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl" for="fh">Hodiny</label><input class="inp" type="number" min="0" id="fh" value="'+h+'" placeholder="0" oninput="updEndHint()"></div><div class="fr" style="margin:0"><label class="lbl" for="fm">Minuty</label><input class="inp" type="number" min="0" max="59" id="fm" value="'+m+'" placeholder="0" oninput="updEndHint()"></div></div><div class="fr"><label class="lbl" for="fst">Začátek</label><input class="inp" type="datetime-local" id="fst" value="'+stVal+'" data-orig="'+stVal+'" oninput="updEndHint()"><div id="fend" style="font-size:12px;color:#64748b;margin-top:4px"></div></div><div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="saveE('+(oid||0)+','+(editId||0)+')">Uložit</button></div>');
+  updEndHint();
 }
 async function saveE(returnOid,editId){
   var dur=(Number($('fh').value)||0)*3600+(Number($('fm').value)||0)*60;if(!dur)return toast('Zadej dobu práce','error');
-  var data={orderId:Number($('fao').value),description:$('fed').value||'Práce',duration:dur,date:$('fdt').value};
+  var st=$('fst').value;if(!st)return toast('Zadej začátek','error');
+  var data={orderId:Number($('fao').value),description:$('fed').value||'Práce',duration:dur,date:st.slice(0,10)};
+  var ex0=editId?DB.entries.find(function(x){return x.id===editId;}):null;
+  // u úpravy starého záznamu bez času: nezměněný začátek nepřidá čas 00:00
+  data.startTime=(ex0&&st===$('fst').dataset.orig)?(ex0.startTime||''):st.slice(11,16);
   closeModal();
   if(editId){var ex=DB.entries.find(function(x){return x.id===editId;});await mut('update','entries',{id:editId,data:Object.assign({},ex,data)});toast('Záznam upraven','success');}
   else{await mut('create','entries',{data:data});toast('Záznam uložen','success');}

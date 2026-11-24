@@ -18,7 +18,7 @@
 const COLUMNS = {
   clients:  ["id","name","company","email","phone","address","city","zip","ico","dic","notes","color"],
   orders:   ["id","clientId","name","description","price","currency","status","stage","created","deadline","color","milestones","delivered","noInvoice","paidDate"],
-  entries:  ["id","orderId","description","duration","date"],
+  entries:  ["id","orderId","description","duration","date","startTime"],
   invoices: ["id","orderId","clientId","number","recipient","items","amount","currency","issued","duzp","dueDate","note","status","paidDate","orderIds","paymentMethod"],
   expenses: ["id","orderId","description","amount","category","date","dueDate","paid","paidDate"],
   notes:    ["id","orderId","text","created"],
@@ -28,7 +28,7 @@ const COLUMNS = {
 };
 
 // Sloupce které musí zůstat jako text (nesmí se konvertovat na číslo)
-const TEXT_COLS   = ["ico","dic"];
+const TEXT_COLS   = ["ico","dic","startTime"];
 const DATE_COLS   = ["created","deadline","delivered","issued","duzp","dueDate","paidDate","date"];
 const NUMBER_COLS = ["id","clientId","orderId","price","amount","duration"];
 
