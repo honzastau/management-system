@@ -237,7 +237,11 @@ const SAMPLE_DATA={
   expenses:[
     {id:1,orderId:1,description:'Licence na stock fotky',amount:1200,category:'Software',date:'2026-06-15'},
     {id:2,orderId:2,description:'Webhosting na rok',amount:2400,category:'Hosting',date:'2026-05-20'},
-    {id:3,orderId:3,description:'Tisk vzorníku barev',amount:450,category:'Materiál',date:'2026-04-28'}
+    {id:3,orderId:3,description:'Tisk vzorníku barev',amount:450,category:'Materiál',date:'2026-04-28'},
+    {id:4,orderId:1,description:'Subdodávka fotografa',amount:6500,category:'Subdodávka',date:localISO(new Date()),dueDate:localISO(new Date(Date.now()+3*86400000)),paid:false,paidDate:''},
+    {id:5,orderId:2,description:'Faktura za tisk letáků',amount:3200,category:'Materiál',date:localISO(new Date()),dueDate:localISO(new Date()),paid:false,paidDate:''},
+    {id:6,orderId:1,description:'Nájem nářadí',amount:1800,category:'Nářadí',date:localISO(new Date()),dueDate:localISO(new Date(Date.now()-2*86400000)),paid:false,paidDate:''},
+    {id:7,orderId:2,description:'Doprava materiálu',amount:900,category:'Doprava',date:localISO(new Date()),dueDate:localISO(new Date(Date.now()+20*86400000)),paid:false,paidDate:''}
   ],
   notes:[
     {id:1,orderId:1,text:'Klient chce přidat filtr podle barvy produktu.',created:'2026-07-10'},
@@ -291,6 +295,18 @@ const ts=oid=>DB.entries.filter(x=>x.orderId===oid).reduce((s,x)=>s+(x.duration|
 const gc=id=>DB.clients.find(c=>c.id===Number(id));
 const go=id=>DB.orders.find(o=>o.id===Number(id));
 const expSum=oid=>DB.expenses.filter(x=>x.orderId===oid).reduce((s,x)=>s+(x.amount||0),0);
+// Náklad zaplacen? Staré záznamy (prázdné "paid") = zaplaceno — tak se počítaly vždy.
+function isExpPaid(x){var v=x.paid;if(v===''||v===undefined||v===null)return true;return v===true||v===1||String(v).toUpperCase()==='TRUE'||String(v)==='1';}
+// Datum, kdy náklad reálně odešel (pro reporty): datum platby, u starých záznamů původní datum
+function expPaidDay(x){return normDate(x.paidDate)||normDate(x.date);}
+// Počet dní do splatnosti nezaplaceného nákladu (0 = dnes, záporné = po splatnosti), jinak null
+function expDueDays(x){if(isExpPaid(x)||!x.dueDate)return null;var d=_pd(x.dueDate);if(!d)return null;var n=new Date();n.setHours(12,0,0,0);return Math.round((d-n)/86400000);}
+function expStatusHTML(x,oid){
+  if(isExpPaid(x))return '<span style="font-size:11px;font-weight:700;color:#059669;white-space:nowrap">✓ Zaplaceno'+(x.paidDate?' '+fmtD(x.paidDate):'')+'</span>';
+  var dd=expDueDays(x);var c='#d97706',t='Nezaplaceno';
+  if(dd!==null){if(dd<0){c='#dc2626';t='Po splatnosti '+(-dd)+' d';}else if(dd===0){c='#dc2626';t='Splatné dnes';}else if(dd<=5){t='Splatné za '+dd+' d';}else{c='#64748b';t='Splatnost '+fmtD(x.dueDate);}}
+  return '<button class="btn bg btn-sm" style="padding:2px 8px;font-size:11px;font-weight:700;color:'+c+';white-space:nowrap" onclick="payExp('+x.id+','+oid+')" title="Označit jako zaplaceno dnes">'+t+' · zaplatit</button>';
+}
 // Faktury navázané na zakázku (orderId nebo orderIds) — jediné místo pro tuhle logiku
 function invsForOrder(oid){oid=Number(oid);return DB.invoices.filter(function(i){var ids=Array.isArray(i.orderIds)?i.orderIds.map(Number):[];return Number(i.orderId)===oid||ids.indexOf(oid)>=0;});}
 function isNoInv(o){return o&&(o.noInvoice===true||o.noInvoice==='true'||o.noInvoice==='TRUE'||o.noInvoice===1||o.noInvoice==='1');}
@@ -713,7 +729,19 @@ function vDash(){
   var monthCash=DB.orders.filter(function(o){return isNoInv(o)&&o.paidDate&&String(normDate(o.paidDate)).startsWith(curMonthKey);}).reduce(function(s,o){return s+(o.price||0);},0);
   var monthTurnover=monthPaidInv+monthCash;
   var monthMinutes=DB.entries.filter(function(x){return String(x.date||'').startsWith(curMonthKey);}).reduce(function(s,x){return s+(x.duration||0);},0);
-  var monthExpenses=DB.expenses.filter(function(x){return String(x.date||'').startsWith(curMonthKey);}).reduce(function(s,x){return s+(x.amount||0);},0);
+  var monthExpenses=DB.expenses.filter(function(x){return isExpPaid(x)&&expPaidDay(x).startsWith(curMonthKey);}).reduce(function(s,x){return s+(x.amount||0);},0);
+  // Nezaplacené náklady: 5 dní před splatností oranžově, v den splatnosti a po ní červeně
+  var dueExps=DB.expenses.map(function(x){return {x:x,d:expDueDays(x)};}).filter(function(r){return r.d!==null&&r.d<=5;}).sort(function(a,b){return a.d-b.d;});
+  var expWarn=dueExps.map(function(r){
+    var x=r.x,o=go(x.orderId),hot=r.d<=0;
+    var lbl=r.d<0?'Po splatnosti '+(-r.d)+(-r.d===1?' den':-r.d<5?' dny':' dní'):r.d===0?'Splatné DNES':'Splatné za '+r.d+(r.d===1?' den':r.d<5?' dny':' dní');
+    return '<div style="display:flex;align-items:center;gap:14px;border-radius:12px;padding:'+(hot?'16px 18px':'12px 18px')+';margin-bottom:10px;'
+      +(hot?'background:#dc2626;color:#fff;box-shadow:0 4px 14px rgba(220,38,38,.25)':'background:#fff7ed;border:1px solid #fed7aa')+'">'
+      +'<span style="font-size:'+(hot?'22px':'18px')+'">'+(hot?'🚨':'⏰')+'</span>'
+      +'<div style="flex:1;min-width:0;cursor:pointer" onclick="vOrderDetail('+x.orderId+')"><div style="font-weight:800;'+(hot?'font-size:15px':'color:#d97706')+'">'+lbl+': '+e(x.description)+'</div>'
+      +'<div style="font-size:12px;'+(hot?'opacity:.9':'color:#92400e')+'">'+fmtM(x.amount)+' · splatnost '+fmtD(x.dueDate)+(o?' · '+e(o.name):'')+'</div></div>'
+      +'<button class="btn btn-sm" style="'+(hot?'background:#fff;color:#dc2626;border:none;font-weight:700':'background:#fff;border:1px solid #fed7aa;color:#d97706;font-weight:700')+'" onclick="payExp('+x.id+')">'+ic('check')+'Zaplaceno</button></div>';
+  }).join('');
   var pend=DB.invoices.filter(function(i){return i.status!=='paid'&&i.dueDate&&new Date(i.dueDate)<now;});
   var warn=pend.length?'<div style="display:flex;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:14px 18px;margin-bottom:20px;align-items:center;gap:14px"><span style="font-size:20px">⚠️</span><div><div style="font-weight:700;color:#d97706">'+pend.length+' nezaplacen'+(pend.length===1?'á faktura':pend.length<5?'é faktury':'ých faktur')+'</div><div style="font-size:12px;color:#92400e">'+fmtM(pend.reduce(function(s,i){return s+(i.amount||0);},0))+'</div></div><button class="btn bg btn-sm" style="margin-left:auto" onclick="sv(\'invoices\')">Zobrazit</button></div>':'';
   var notDoneT=DB.todos.filter(function(t){return !isDone(t);}).sort(function(a,b){return todoOrderVal(a)-todoOrderVal(b);});
@@ -726,6 +754,7 @@ function vDash(){
   '<div class="mc" onclick="sv(\'reports\')"><div class="lbl" style="margin-bottom:8px">Náklady (tento měsíc)</div><div class="mono" style="font-size:22px;font-weight:800;color:#ef4444">'+fmtM(monthExpenses)+'</div></div>'+
   '<div class="mc" onclick="sv(\'time\')"><div class="lbl" style="margin-bottom:8px">Odpracováno (tento měsíc)</div><div class="mono" style="font-size:26px;font-weight:800;color:#8b5cf6">'+fmtDur(monthMinutes)+'</div></div>'+
   '</div>'+
+  expWarn+
   warn+
   '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div class="st" style="margin:0">Úkoly</div><button class="btn bp btn-sm" onclick="openTodoM()">+ Přidat</button></div>'
   +(todosH||'<div style="color:#475569;font-size:13px;text-align:center;padding:20px 0">Žádné úkoly</div>')
@@ -1073,11 +1102,12 @@ function vOrderDetail(id){
   }).join('');
   var exps=DB.expenses.filter(function(x){return x.orderId===o.id;}).sort(function(a,b){return b.id-a.id;});
   var expsH=exps.map(function(x){
-    return '<tr><td class="mono" style="font-size:12px;color:#64748b">'+x.date+'</td>'
-      +'<td style="font-size:12px">'+e(x.description)+'</td>'
+    return '<tr><td style="font-size:12px">'+e(x.description)+'</td>'
       +'<td style="font-size:12px"><span class="stag">'+e(x.category)+'</span></td>'
+      +'<td class="mono" style="font-size:12px;color:#64748b;white-space:nowrap">'+fmtD(x.dueDate)+'</td>'
+      +'<td>'+expStatusHTML(x,o.id)+'</td>'
       +'<td class="mono" style="color:#ef4444;font-weight:700">'+fmtM(x.amount)+'</td>'
-      +'<td><button class="btn bd btn-sm" style="padding:2px 7px;font-size:11px" onclick="delExp('+x.id+','+o.id+')">'+ic('trash')+'</button></td></tr>';
+      +'<td><div style="display:flex;gap:4px;justify-content:flex-end"><button class="btn bg btn-sm" style="padding:2px 7px;font-size:11px" onclick="openExpM('+o.id+','+x.id+')" aria-label="Upravit náklad" title="Upravit">'+ic('edit')+'</button><button class="btn bd btn-sm" style="padding:2px 7px;font-size:11px" onclick="delExp('+x.id+','+o.id+')" aria-label="Smazat náklad">'+ic('trash')+'</button></div></td></tr>';
   }).join('');
   var invs=invsForOrder(o.id);
   var invsH=invs.map(function(inv){
@@ -1121,7 +1151,7 @@ function vOrderDetail(id){
     +'<div class="st" style="margin:0">Náklady</div>'
     +'<button class="btn bp btn-sm" onclick="openExpM('+o.id+')">+ Přidat</button></div>'
     +(exps.length
-      ?'<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Datum</th><th>Popis</th><th>Kategorie</th><th>Částka</th><th></th></tr></thead><tbody>'+expsH+'</tbody></table></div>'
+      ?'<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Popis</th><th>Kategorie</th><th>Splatnost</th><th>Stav</th><th>Částka</th><th></th></tr></thead><tbody>'+expsH+'</tbody></table></div>'
       :'<div style="color:#475569;font-size:13px;text-align:center;padding:14px 0">Žádné náklady</div>'
     )
     +'</div>';
@@ -1235,7 +1265,7 @@ function vReports(selYr){
   var allYrs=[];
   DB.invoices.forEach(function(x){var y=(x.issued||'').slice(0,4);if(y.length===4&&allYrs.indexOf(y)<0)allYrs.push(y);});
   DB.entries.forEach(function(x){var y=(x.date||'').slice(0,4);if(y.length===4&&allYrs.indexOf(y)<0)allYrs.push(y);});
-  DB.expenses.forEach(function(x){var y=(x.date||'').slice(0,4);if(y.length===4&&allYrs.indexOf(y)<0)allYrs.push(y);});
+  DB.expenses.forEach(function(x){var y=expPaidDay(x).slice(0,4);if(y.length===4&&allYrs.indexOf(y)<0)allYrs.push(y);});
   cashOrders().forEach(function(o){var y=String(normDate(o.paidDate)).slice(0,4);if(y.length===4&&allYrs.indexOf(y)<0)allYrs.push(y);});
   allYrs.sort().reverse();
   if(!allYrs.length)allYrs=[String(new Date().getFullYear())];
@@ -1247,7 +1277,8 @@ function vReports(selYr){
   // Přijaté faktury = zaplacené dle data PLATBY (paidDate), ne dle vystavení
   var yrReceivedInvs=DB.invoices.filter(function(i){return i.status==='paid'&&inYr(String(normDate(i.paidDate)||normDate(i.issued)));});
   var yrEnts=DB.entries.filter(function(x){return inYr(x.date);});
-  var yrExps=DB.expenses.filter(function(x){return inYr(x.date);});
+  // Náklady = reálně zaplacené daný rok (dle data platby; staré záznamy dle původního data)
+  var yrExps=DB.expenses.filter(function(x){return isExpPaid(x)&&inYr(expPaidDay(x));});
   // Vyfakturováno = vše vystavené daný rok (dle data vystavení)
   var invoiced=yrInvs.reduce(function(s,i){return s+(i.amount||0);},0);
   var yrCashOrds=cashOrders(isAll?null:yrS);
@@ -1602,11 +1633,37 @@ async function saveE(returnOid,editId){
   if(returnOid)vOrderDetail(returnOid);
 }
 
-function openExpM(oid){
-  var cats=EXP_CATS.map(function(c){return '<option>'+c+'</option>';}).join('');
-  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">Nový náklad</div><div class="fr"><label class="lbl" for="exd">Popis *</label><input class="inp" id="exd" placeholder="Popis nákladu..."></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl" for="exa">Částka (Kč) *</label><input class="inp" type="number" id="exa" placeholder="0"></div><div class="fr" style="margin:0"><label class="lbl" for="exc">Kategorie</label><select class="inp" id="exc">'+cats+'</select></div></div><div class="fr"><label class="lbl" for="exdt">Datum</label><input class="inp" type="date" id="exdt" value="'+today()+'"></div><div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="saveExp('+oid+')">Uložit</button></div>');
+function openExpM(oid,editId){
+  var x=editId?DB.expenses.find(function(r){return r.id===editId;}):null;
+  var cat=x?x.category:EXP_CATS[0];
+  var catList=EXP_CATS.slice();if(cat&&catList.indexOf(cat)<0)catList.push(cat);
+  var cats=catList.map(function(c){return '<option'+(c===cat?' selected':'')+'>'+e(c)+'</option>';}).join('');
+  var paid=x?isExpPaid(x):false;
+  var pd=x&&x.paidDate?normDate(x.paidDate):today();
+  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(x?'Upravit náklad':'Nový náklad')+'</div>'
+    +'<div class="fr"><label class="lbl" for="exd">Popis *</label><input class="inp" id="exd" placeholder="Popis nákladu..." value="'+(x?e(x.description):'')+'"></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl" for="exa">Částka (Kč) *</label><input class="inp" type="number" id="exa" placeholder="0" value="'+(x?x.amount:'')+'"></div><div class="fr" style="margin:0"><label class="lbl" for="exc">Kategorie</label><select class="inp" id="exc">'+cats+'</select></div></div>'
+    +'<div class="fr"><label class="lbl" for="exdue">Splatnost (do kdy zaplatit)</label><input class="inp" type="date" id="exdue" value="'+(x&&x.dueDate?normDate(x.dueDate):'')+'"></div>'
+    +'<label for="expaid" style="display:flex;align-items:center;gap:10px;margin-bottom:13px;cursor:pointer;font-size:14px;font-weight:600;min-height:32px"><input type="checkbox" id="expaid" style="width:18px;height:18px;accent-color:#059669" onchange="$(\'expd-wrap\').style.display=this.checked?\'\':\'none\'"'+(paid?' checked':'')+'>Zaplaceno</label>'
+    +'<div class="fr" id="expd-wrap" style="'+(paid?'':'display:none')+'"><label class="lbl" for="expd">Datum platby</label><input class="inp" type="date" id="expd" value="'+pd+'"></div>'
+    +'<div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="saveExp('+oid+','+(x?x.id:0)+')">Uložit</button></div>');
 }
-async function saveExp(oid){var desc=$('exd').value.trim();var amt=Number($('exa').value);if(!desc||!amt)return toast('Vyplň popis a částku','error');var data={orderId:oid,description:desc,amount:amt,category:$('exc').value,date:$('exdt').value};closeModal();await mut('create','expenses',{data:data});toast('Náklad přidán','success');vOrderDetail(oid);}
+async function payExp(id,oid){
+  var x=DB.expenses.find(function(r){return r.id===id;});if(!x)return;
+  await mutFast('expenses',id,Object.assign({},x,{paid:true,paidDate:today()}));
+  toast('Náklad označen jako zaplacený','success');
+}
+async function saveExp(oid,editId){
+  var desc=$('exd').value.trim();var amt=Number($('exa').value);if(!desc||!amt)return toast('Vyplň popis a částku','error');
+  var paid=$('expaid').checked;var pd=paid?$('expd').value:'';
+  if(paid&&!pd)return toast('Vyplň datum platby','error');
+  var data={orderId:oid,description:desc,amount:amt,category:$('exc').value,dueDate:$('exdue').value,paid:paid,paidDate:pd};
+  var x=editId?DB.expenses.find(function(r){return r.id===editId;}):null;
+  closeModal();
+  if(x){await mut('update','expenses',{id:x.id,data:Object.assign({},x,data)});toast('Náklad upraven','success');}
+  else{data.date=today();await mut('create','expenses',{data:data});toast('Náklad přidán','success');}
+  vOrderDetail(oid);
+}
 
 function openNoteM(oid){
   openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">Nová poznámka</div><div class="fr"><label class="lbl" for="ntxt">Text poznámky</label><textarea class="inp" id="ntxt" rows="4" style="resize:vertical" placeholder="Vaše poznámka..."></textarea></div><div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="saveNote('+oid+')">Uložit</button></div>');

@@ -20,7 +20,7 @@ const COLUMNS = {
   orders:   ["id","clientId","name","description","price","currency","status","stage","created","deadline","color","milestones","delivered","noInvoice","paidDate"],
   entries:  ["id","orderId","description","duration","date"],
   invoices: ["id","orderId","clientId","number","recipient","items","amount","currency","issued","duzp","dueDate","note","status","paidDate","orderIds","paymentMethod"],
-  expenses: ["id","orderId","description","amount","category","date"],
+  expenses: ["id","orderId","description","amount","category","date","dueDate","paid","paidDate"],
   notes:    ["id","orderId","text","created"],
   todos:    ["id","text","done","created","color","order","date"],
   // Údaje firmy na fakturách (1 řádek) — sdílené mezi zařízeními. List se vytvoří sám při prvním načtení.

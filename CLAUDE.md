@@ -28,6 +28,13 @@ Stop hook v `~/.claude/settings.json` automaticky commituje a pushuje každou zm
 - `invsForOrder(oid)` — jediné místo pro „faktury k zakázce“ (orderId i orderIds).
 - Backend: `LockService` na zápisy, `CacheService` pro getAll (generační klíč, TTL 5 min — ruční úprava v Sheets se projeví až do 5 min nebo po „Zkusit znovu“), jeden `setNumberFormats` + `setValues` na řádek, id/hledání řádku jen ze sloupce A.
 - `items`, `orderIds`, `milestones` backend vrací jako JSON string, `normalizeInvoices()` parsuje.
+
+### Náklady (expenses) — splatnost a platba
+- Sloupce navíc: `dueDate`, `paid` (boolean), `paidDate`. Pole „Datum“ ve formuláři není; `date` se u nového nákladu plní automaticky dnešním dnem (sloupec zůstává kvůli pozici).
+- `isExpPaid(x)` — prázdné `paid` (staré záznamy) = zaplaceno. `expPaidDay(x)` = `paidDate || date` (reporty, dlaždice měsíce počítají jen zaplacené dle data platby).
+- `expDueDays(x)` — dny do splatnosti nezaplaceného; Přehled ukazuje ≤5 dní oranžově, den splatnosti a po splatnosti červeně (`expWarn` ve `vDash`).
+- `openExpM(oid, editId)` / `saveExp(oid, editId)` — nový i úprava; `payExp(id)` — rychlé „zaplaceno dnes“ přes `mutFast`.
+- Past při náhledu: Edit hook otevírá upravený `index.html` v panelu jako `data:` URL **bez `?dev=1`** → běží proti reálným datům. Testovat jen v kartě s `http://127.0.0.1:PORT/index.html?dev=1`.
 ### Pasti v kódu
 - `render()` dispatch map **neobsahuje** `'orderDetail'` — volání `render()` z order detail view je no-op; použít `vOrderDetail(oid)` přímo
 - Průběžná zakázka = `!o.deadline` (žádný deadline)
