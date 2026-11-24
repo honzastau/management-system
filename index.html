@@ -199,6 +199,7 @@ var _EDIT_INV=null;
 const COLORS=['#f59e0b','#3b82f6','#10b981','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316','#84cc16','#14b8a6','#a78bfa','#fb7185','#fbbf24','#34d399','#60a5fa','#f472b6','#4ade80','#38bdf8','#fb923c','#e879f9','#a3e635','#2dd4bf','#818cf8','#f43f5e','#facc15','#86efac','#7dd3fc','#c084fc','#fdba74'];
 function autoAssignColor(){var used=DB.clients.map(function(c){return c.color;});var free=COLORS.filter(function(c){return !used.includes(c);});return free.length?free[0]:COLORS[DB.clients.length%COLORS.length];}
 const STAGES=['Poptávka','Nabídka','Projekce','Realizace','Předání','Fakturováno','Zaplaceno'];
+const INV_UNITS=['ks','hod','m','m²','m³','kg','km','den','měs.','kpl','paušál'];
 const EXP_CATS=['Materiál','Práce','Subdodávka','Doprava','Nářadí','Režie','Ostatní'];
 const DEV_MODE=/[?&]dev=1(&|$)/.test(location.search);
 const DEV_DB_KEY='mgmt_dev_db';
@@ -590,7 +591,7 @@ function printInv(id){
   var itemRows=items.map(function(it,i){
     var tot=(Number(it.qty)||0)*(Number(it.price)||0);
     return '<tr style="background:'+(i%2?'#f8fafc':'#fff')+'">'
-      +'<td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;text-align:center;white-space:nowrap;font-weight:600;width:70px">'+it.qty+' ks</td>'
+      +'<td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;text-align:center;white-space:nowrap;font-weight:600;width:80px">'+String(it.qty).replace('.',',')+' '+e(it.unit||'ks')+'</td>'
       +'<td style="padding:10px 14px;border-bottom:1px solid #e2e8f0"><div style="font-weight:500;color:#1a1a2e">'+e(it.desc)+'</div>'+(it.note?'<div style="font-size:11px;color:#64748b;margin-top:2px">'+e(it.note)+'</div>':'')+'</td>'
       +'<td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;text-align:right;white-space:nowrap;width:130px">'+fmtM(it.price,inv.currency)+'</td>'
       +'<td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;text-align:right;white-space:nowrap;font-weight:700;width:130px">'+fmtM(tot,inv.currency)+'</td>'
@@ -1692,7 +1693,7 @@ function openIM(editId){
     if(Array.isArray(inv.items))rawItems=inv.items;
     else if(typeof inv.items==='string'&&inv.items){try{rawItems=JSON.parse(inv.items);}catch(e){rawItems=[];}}
   }
-  INV_ITEMS=rawItems.map(function(it){return{desc:it.desc||'',note:it.note||'',qty:Number(it.qty)||1,price:Number(it.price)||0};});
+  INV_ITEMS=rawItems.map(function(it){return{desc:it.desc||'',note:it.note||'',qty:Number(it.qty)||1,unit:it.unit||'ks',price:Number(it.price)||0};});
   var autoNum=inv?inv.number:nin();
   var orderChecks=allOrders.map(function(o){var sel=invOrderIds.indexOf(o.id)>=0;return '<label style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;cursor:pointer;'+(sel?'background:var(--bg-in);':'')+'hover:background:var(--bg-in)"><input type="checkbox" class="inv-order-cb" value="'+o.id+'"'+(sel?' checked':'')+' onchange="updateInvInfo()" style="width:15px;height:15px;accent-color:var(--ac)"><span style="font-size:13px;font-weight:600">'+e(o.name)+'</span><span style="font-size:12px;color:#64748b;margin-left:4px">'+e((gc(o.clientId)&&gc(o.clientId).company||gc(o.clientId)&&gc(o.clientId).name||''))+'</span><span class="mono" style="font-size:11px;color:var(--ac);margin-left:auto">'+fmtM(o.price)+'</span></label>';}).join('');
   openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(editId?'Upravit fakturu':'Nová faktura')+'</div>'+(needsRepair?'<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#d97706">⚠ Tato faktura byla vytvořena bez uložení propojených zakázek. Zaškrtni všechny patřičné zakázky a ulož — propojení se tím opraví.</div>':'')
@@ -1743,23 +1744,24 @@ function updateInvInfo(){
     var allEmpty=INV_ITEMS.every(function(it){return !it.desc&&!it.price;});
     if(allEmpty&&orders.length>0){
       INV_ITEMS=orders.map(function(ord){
-        return {desc:'',note:ord.name||'',qty:1,price:ord.price||0};
+        return {desc:'',note:ord.name||'',qty:1,unit:'ks',price:ord.price||0};
       });
       renderII();calcItot();
     }
   }
 }
-function addII(){INV_ITEMS.push({desc:'',note:'',qty:1,price:''});renderII();}
+function addII(){INV_ITEMS.push({desc:'',note:'',qty:1,unit:'ks',price:''});renderII();}
 function remII(i){INV_ITEMS.splice(i,1);renderII();}
 function updII(i,k,v){INV_ITEMS[i][k]=v;calcItot();}
 function getItemSuggestions(){
   var seen={};
   DB.invoices.forEach(function(inv){
     var items=Array.isArray(inv.items)?inv.items:[];
-    items.forEach(function(it){if(it.desc&&it.desc.trim())seen[it.desc.trim()]=it.price||0;});
+    items.forEach(function(it){if(it.desc&&it.desc.trim())seen[it.desc.trim()]={price:it.price||0,unit:it.unit||''};});
   });
-  return Object.keys(seen).map(function(k){return {desc:k,price:seen[k]};});
+  return Object.keys(seen).map(function(k){return {desc:k,price:seen[k].price,unit:seen[k].unit};});
 }
+function unitOpts(u){u=u||'ks';var l=INV_UNITS.slice();if(l.indexOf(u)<0)l.push(u);return l.map(function(x){return '<option'+(x===u?' selected':'')+'>'+e(x)+'</option>';}).join('');}
 function renderII(){
   var el=$('iitems');if(!el)return;
   var suggs=getItemSuggestions();
@@ -1767,9 +1769,10 @@ function renderII(){
   var dl=suggs.length?'<datalist id="'+dlId+'">'+suggs.map(function(s){return '<option value="'+e(s.desc)+'">';}).join('')+'</datalist>':'';
   el.innerHTML=dl+INV_ITEMS.map(function(it,i){
     return '<div style="border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--bg-in)">'
-      +'<div style="display:grid;grid-template-columns:1fr 70px 110px 32px;gap:6px;margin-bottom:6px;align-items:center">'
+      +'<div style="display:grid;grid-template-columns:1fr 70px 82px 110px 32px;gap:6px;margin-bottom:6px;align-items:center">'
       +'<input class="inp" list="'+dlId+'" placeholder="Položka *" value="'+e(it.desc)+'" oninput="updIIDesc('+i+',this.value)" style="font-weight:600">'
-      +'<input class="inp" type="number" placeholder="Ks" value="'+it.qty+'" oninput="updII('+i+',\'qty\',this.value)" style="text-align:center">'
+      +'<input class="inp" type="number" step="any" min="0" placeholder="Množ." aria-label="Množství" value="'+it.qty+'" oninput="updII('+i+',\'qty\',this.value)" style="text-align:center">'
+      +'<select class="inp" id="ii-unit-'+i+'" aria-label="Jednotka" onchange="updII('+i+',\'unit\',this.value)" style="padding-left:8px;padding-right:4px">'+unitOpts(it.unit)+'</select>'
       +'<input class="inp" id="ii-price-'+i+'" type="number" placeholder="Cena Kč" value="'+it.price+'" oninput="updII('+i+',\'price\',this.value)">'
       +'<button class="btn bd btn-sm" style="padding:0 8px;height:100%" onclick="remII('+i+')" aria-label="Odebrat položku">'+ic('trash')+'</button>'
       +'</div>'
@@ -1782,11 +1785,12 @@ function updIIDesc(i,v){
   var suggs=getItemSuggestions();
   var match=suggs.find(function(s){return s.desc===v;});
   if(match&&!INV_ITEMS[i].price){INV_ITEMS[i].price=match.price;var el=$('ii-price-'+i);if(el)el.value=match.price;}
+  if(match&&match.unit&&match.unit!==INV_ITEMS[i].unit){INV_ITEMS[i].unit=match.unit;var ue=$('ii-unit-'+i);if(ue)ue.innerHTML=unitOpts(match.unit);}
   calcItot();
 }
 function calcItot(){var tot=INV_ITEMS.reduce(function(s,it){return s+(Number(it.qty)||0)*(Number(it.price)||0);},0);var el=$('itot');if(el)el.textContent='Celkem: '+fmtM(tot);}
 async function saveI(editId){
-  var items=INV_ITEMS.map(function(it){return{desc:it.desc,note:it.note||'',qty:Number(it.qty)||1,price:Number(it.price)||0};});
+  var items=INV_ITEMS.map(function(it){return{desc:it.desc,note:it.note||'',qty:Number(it.qty)||1,unit:it.unit||'ks',price:Number(it.price)||0};});
   var amount=items.reduce(function(s,it){return s+it.qty*it.price;},0);
   if(!amount)return toast('Přidej alespoň jednu položku s cenou','error');
   var oids=getSelectedOrderIds();

@@ -29,6 +29,10 @@ Stop hook v `~/.claude/settings.json` automaticky commituje a pushuje každou zm
 - Backend: `LockService` na zápisy, `CacheService` pro getAll (generační klíč, TTL 5 min — ruční úprava v Sheets se projeví až do 5 min nebo po „Zkusit znovu“), jeden `setNumberFormats` + `setValues` na řádek, id/hledání řádku jen ze sloupce A.
 - `items`, `orderIds`, `milestones` backend vrací jako JSON string, `normalizeInvoices()` parsuje.
 
+### Položky faktury — měrné jednotky
+- Položka v `items` (JSON): `{desc, note, qty, unit, price}`; `unit` z `INV_UNITS`, chybějící = `'ks'` (staré faktury). Žádný nový sloupec.
+- `unitOpts(u)` — options selectu; `getItemSuggestions()` vrací i `unit`, `updIIDesc` ji předvyplní. Množství může být desetinné (tisk s čárkou).
+
 ### Náklady (expenses) — splatnost a platba
 - Sloupce navíc: `dueDate`, `paid` (boolean), `paidDate`. Pole „Datum“ ve formuláři není; `date` se u nového nákladu plní automaticky dnešním dnem (sloupec zůstává kvůli pozici).
 - `isExpPaid(x)` — prázdné `paid` (staré záznamy) = zaplaceno. `expPaidDay(x)` = `paidDate || date` (reporty, dlaždice měsíce počítají jen zaplacené dle data platby).
