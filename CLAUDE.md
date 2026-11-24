@@ -74,13 +74,16 @@ Formát `YYYY-NNN` (např. `2026-009`), funkce `nin()`
 - Karty klientů + čas. záznamy: `border-left` → `border-top` (design rule)
 - Aktivní milestone tečka: `box-shadow glow` → `transform:scale(1.25)`
 
-### Časomíra (tracker) — redesign ve stylu spent.work (zatím jen `index-dev.html`)
+### Časomíra (tracker) — redesign ve stylu spent.work (v `index.html` i `index-dev.html`)
 - **Perzistence běžícího časovače**: `TS` nově drží `startedAt` (epoch ms) místo pouhého počítadla; ukládá se do `localStorage` (klíč `mgmt_timer` přes `LS` wrapper) v `persistTimer()`. Při startu appky `restoreTimer()` (voláno z `loadAll()` po naplnění `DB`, před `render()`) obnoví běžící časovač a dopočítá uplynulý čas z `Date.now()-startedAt` — časomíra tedy přežije zavření okna/reload, i když JS reálně neběží na pozadí zavřené karty.
 - `timerTick()` — centrální funkce pro `setInterval`, aktualizuje `#tdisp`, `#tdisp-inline` a `#ord-t-{orderId}` (živý součet na kartě zakázky) přímo přes `textContent`, bez `render()` (nerozbije focus na inputech).
 - Zůstává **jeden globální časovač** (žádné souběžné časovače napříč zakázkami) — vědomé rozhodnutí uživatele.
 - `vTime()` karty zakázek přepracovány na vzor spent.work: kulaté ▶/■ tlačítko vlevo (mění se na ■ + `stopTimer()` když běží), velký mono čas vpravo nahoře (`fmtT`, formát HH:MM:SS, živě tiká), zvýrazněné pozadí (`#062016`/`#0d3a25`) na běžícím řádku.
 - **Editace záznamu**: `openEM(oid, editId)` a `saveE(returnOid, editId)` nyní podporují úpravu existujícího záznamu (tužka vedle koše v tabulkách ve `vTime()` i `vOrderDetail()`), místo pouze mazání. Pozor: select zakázky ve formuláři musí zahrnout i neaktivní zakázku editovaného záznamu (`o.status==='active'||o.id===selOid`), jinak by uložení záznamu u dokončené/archivované zakázky přehodilo záznam na jinou zakázku.
-- **Neportováno do produkce**: změny jsou zatím jen v `index-dev.html`. Až uživatel odsouhlasí chování, je potřeba ručně přenést do `index.html` (žádný sdílený include mezi soubory).
+- Názvy zakázek na kartách se zalamují (karta 320px), běžící karta má světle zelené pozadí `#ecfdf5`/`#86efac` (aplikace je ve světlém vzhledu).
+- Tabulka záznamů bez filtru ukazuje jen aktivní zakázky; záznamy dokončených jsou zašedlé pod rozbalovacím řádkem (`toggleTimeDone`).
+- `vTime()` je v obou souborech identická (2026-11-24) — při úpravách držet v synchronu.
+- Soubory mají CRLF a `index.html` UTF-8 s BOM — při skriptovaných úpravách zachovat.
 
 ## Uživatel
 Jan Staudinger (honzastau), komunikace česky.

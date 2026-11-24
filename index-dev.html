@@ -1089,11 +1089,11 @@ function vTime(){
       :isR
         ?'<button class="btn bd" style="width:44px;height:44px;min-width:44px;min-height:44px;border-radius:50%;padding:0;flex-shrink:0;justify-content:center" onclick="event.stopPropagation();stopTimer()" aria-label="Zastavit časovač" title="Zastavit">'+ic('stop')+'</button>'
         :'<button class="btn bs" style="width:44px;height:44px;min-width:44px;min-height:44px;border-radius:50%;padding:0;flex-shrink:0;justify-content:center" onclick="event.stopPropagation();startTimer('+o.id+')" aria-label="Spustit časovač" title="Spustit">'+ic('play')+'</button>';
-    return '<div class="card" style="padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer;'+(isR?'background:#062016;border-color:#0d3a25;':'')+(isSel?'border-color:var(--ac)':'')+'" onclick="selectTimeOrder('+o.id+')">'
+    return '<div class="card" style="padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer;'+(isR?'background:#ecfdf5;border-color:#86efac;':'')+(isSel?'border-color:var(--ac)':'')+'" onclick="selectTimeOrder('+o.id+')">'
       +playBtn
       +'<div style="flex:1;min-width:0">'
       +'<div style="display:flex;align-items:flex-start;gap:7px;font-size:13px;font-weight:700"><span class="dot" style="background:'+e(o.color)+';margin-top:4px;flex-shrink:0"></span><span style="overflow-wrap:break-word">'+e(o.name)+'</span></div>'
-      +'<div style="font-size:11px;color:#64748b;margin-top:2px;overflow-wrap:break-word">'+e((cl&&cl.company||cl&&cl.name||'—'))+(isR?' · <span style="color:#34d399;font-weight:700">● Běží</span>':'')+'</div>'
+      +'<div style="font-size:11px;color:#64748b;margin-top:2px;overflow-wrap:break-word">'+e((cl&&cl.company||cl&&cl.name||'—'))+(isR?' · <span style="color:#059669;font-weight:700">● Běží</span>':'')+'</div>'
       +'</div>'
       +'<div style="text-align:right;flex-shrink:0;display:flex;align-items:center;gap:8px">'
       +'<div><div class="mono" id="ord-t-'+o.id+'" style="font-size:18px;font-weight:800;color:'+e(o.color)+'">'+fmtT(liveSec)+'</div>'
