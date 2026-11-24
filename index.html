@@ -1694,6 +1694,8 @@ function openIM(editId){
     else if(typeof inv.items==='string'&&inv.items){try{rawItems=JSON.parse(inv.items);}catch(e){rawItems=[];}}
   }
   INV_ITEMS=rawItems.map(function(it){return{desc:it.desc||'',note:it.note||'',qty:Number(it.qty)||1,unit:it.unit||'ks',price:Number(it.price)||0};});
+  // Zakázky, které už svou položku mají (u úpravy faktury všechny propojené) — znovu se nepřidají
+  INV_AUTO_DONE={};invOrderIds.forEach(function(id){INV_AUTO_DONE[id]=true;});
   var autoNum=inv?inv.number:nin();
   var orderChecks=allOrders.map(function(o){var sel=invOrderIds.indexOf(o.id)>=0;return '<label style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;cursor:pointer;'+(sel?'background:var(--bg-in);':'')+'hover:background:var(--bg-in)"><input type="checkbox" class="inv-order-cb" value="'+o.id+'"'+(sel?' checked':'')+' onchange="updateInvInfo()" style="width:15px;height:15px;accent-color:var(--ac)"><span style="font-size:13px;font-weight:600">'+e(o.name)+'</span><span style="font-size:12px;color:#64748b;margin-left:4px">'+e((gc(o.clientId)&&gc(o.clientId).company||gc(o.clientId)&&gc(o.clientId).name||''))+'</span><span class="mono" style="font-size:11px;color:var(--ac);margin-left:auto">'+fmtM(o.price)+'</span></label>';}).join('');
   openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(editId?'Upravit fakturu':'Nová faktura')+'</div>'+(needsRepair?'<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#d97706">⚠ Tato faktura byla vytvořena bez uložení propojených zakázek. Zaškrtni všechny patřičné zakázky a ulož — propojení se tím opraví.</div>':'')
@@ -1711,7 +1713,7 @@ function openIM(editId){
     +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:13px">'
     +'<div class="fr" style="margin:0"><label class="lbl" for="fdu">Splatnost</label><input class="inp" type="date" id="fdu" value="'+(inv?inv.dueDate:dueIn(14))+'"></div>'
     +'<div class="fr" style="margin:0"><label class="lbl" for="fcu">Měna</label><select class="inp" id="fcu"><option'+((!inv||inv.currency==='CZK')?' selected':'')+'>CZK</option><option'+(inv&&inv.currency==='EUR'?' selected':'')+'>EUR</option><option'+(inv&&inv.currency==='USD'?' selected':'')+'>USD</option></select></div>'
-    +'<div class="fr" style="margin:0"><label class="lbl" for="fpm">Způsob platby</label><select class="inp" id="fpm"><option value="hotovost"'+((!inv||!inv.paymentMethod||inv.paymentMethod==='hotovost')?' selected':'')+'>Hotovost</option><option value="prevodem"'+(inv&&inv.paymentMethod==='prevodem'?' selected':'')+'>Převodem</option><option value="karta"'+(inv&&inv.paymentMethod==='karta'?' selected':'')+'>Platební karta</option></select></div>'
+    +'<div class="fr" style="margin:0"><label class="lbl" for="fpm">Způsob platby</label><select class="inp" id="fpm" data-orig="'+(inv?(inv.paymentMethod||'prevodem'):'')+'"><option value="prevodem"'+((!inv||!inv.paymentMethod||inv.paymentMethod==='prevodem')?' selected':'')+'>Převodem</option><option value="hotovost"'+(inv&&inv.paymentMethod==='hotovost'?' selected':'')+'>Hotovost</option><option value="karta"'+(inv&&inv.paymentMethod==='karta'?' selected':'')+'>Platební karta</option></select></div>'
     +'</div>'
     
     +'<div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="saveI('+(editId||0)+')">Uložit</button></div>'); 
@@ -1737,18 +1739,28 @@ function updateInvInfo(){
     +'Odpracováno: <span style="color:#8b5cf6">'+fmtDur(totalTime)+'</span>'
     +' · Hodnota: <span style="color:var(--ac)">'+fmtM(totalVal)+'</span>'
     +' · Náklady: <span style="color:#ef4444">'+fmtM(totalExp)+'</span>';
-  // Auto-fill položek pro NOVOU fakturu
-  // Podmínka: buď žádné položky, nebo všechny položky jsou "prázdné" (nevyplněné)
-  // Auto-fill POUZE pro novou fakturu (ne při editaci) a pouze když jsou položky prázdné
-  if(!INV_EDIT_ID){
-    var allEmpty=INV_ITEMS.every(function(it){return !it.desc&&!it.price;});
-    if(allEmpty&&orders.length>0){
-      INV_ITEMS=orders.map(function(ord){
-        return {desc:'',note:ord.name||'',qty:1,unit:'ks',price:ord.price||0};
-      });
-      renderII();calcItot();
-    }
-  }
+  syncInvOrderItems(orders);
+}
+// Jen u NOVÉ faktury (existující faktury se nikdy automaticky nemění):
+// každá nově zaškrtnutá zakázka přidá vlastní položku (název zakázky + cena); prázdnou položku nahradí.
+// Odškrtnutí zakázky její položku odebere (i když byla upravená).
+var INV_AUTO_DONE={};
+function syncInvOrderItems(orders){
+  if(INV_EDIT_ID)return;
+  var ids=orders.map(function(o){return o.id;});var changed=false;
+  INV_ITEMS=INV_ITEMS.filter(function(it){
+    if(it._oid&&ids.indexOf(it._oid)<0){delete INV_AUTO_DONE[it._oid];changed=true;return false;}
+    return true;
+  });
+  orders.forEach(function(o){
+    if(INV_AUTO_DONE[o.id])return;
+    INV_AUTO_DONE[o.id]=true;changed=true;
+    var item={desc:'',note:o.name||'',qty:1,unit:'ks',price:o.price||0,_oid:o.id};
+    var ei=INV_ITEMS.findIndex(function(it){return !it._oid&&!it.desc&&!it.price&&!it.note;});
+    if(ei>=0)INV_ITEMS[ei]=item;else INV_ITEMS.push(item);
+  });
+  if(!INV_ITEMS.length){INV_ITEMS.push({desc:'',note:'',qty:1,unit:'ks',price:''});changed=true;}
+  if(changed){renderII();calcItot();}
 }
 function addII(){INV_ITEMS.push({desc:'',note:'',qty:1,unit:'ks',price:''});renderII();}
 function remII(i){INV_ITEMS.splice(i,1);renderII();}
@@ -1809,7 +1821,7 @@ async function saveI(editId){
       items:items,
       amount:amount,
       currency:$('fcu').value||ex.currency,
-      paymentMethod:$('fpm').value||ex.paymentMethod||'hotovost',
+      paymentMethod:$('fpm').value===$('fpm').dataset.orig?(ex.paymentMethod||''):$('fpm').value,
       dueDate:$('fdu').value||ex.dueDate,
       issued:$('fiss').value||ex.issued,
       duzp:$('fduzp').value||ex.duzp,
@@ -1819,7 +1831,7 @@ async function saveI(editId){
     toast('Faktura uložena','success');
   }else{
     var primaryClientId=o?o.clientId:'';
-    var baseData={orderId:oid,orderIds:oids,clientId:primaryClientId,recipient:$('frec').value,items:items,amount:amount,currency:$('fcu').value,paymentMethod:$('fpm').value||'hotovost',dueDate:$('fdu').value,note:'',issued:$('fiss').value||today(),duzp:$('fduzp').value||today(),number:$('finv').value||nin(),status:'draft'};
+    var baseData={orderId:oid,orderIds:oids,clientId:primaryClientId,recipient:$('frec').value,items:items,amount:amount,currency:$('fcu').value,paymentMethod:$('fpm').value||'prevodem',dueDate:$('fdu').value,note:'',issued:$('fiss').value||today(),duzp:$('fduzp').value||today(),number:$('finv').value||nin(),status:'draft'};
     await mut('create','invoices',{data:baseData});
     toast('Faktura vytvořena','success');
   }

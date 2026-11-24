@@ -29,6 +29,11 @@ Stop hook v `~/.claude/settings.json` automaticky commituje a pushuje každou zm
 - Backend: `LockService` na zápisy, `CacheService` pro getAll (generační klíč, TTL 5 min — ruční úprava v Sheets se projeví až do 5 min nebo po „Zkusit znovu“), jeden `setNumberFormats` + `setValues` na řádek, id/hledání řádku jen ze sloupce A.
 - `items`, `orderIds`, `milestones` backend vrací jako JSON string, `normalizeInvoices()` parsuje.
 
+### Formulář faktury — pravidla
+- **Existující faktury se nikdy automaticky nemění** (výslovné přání uživatele). Auto-chování jen pro novou fakturu (`!INV_EDIT_ID`).
+- `syncInvOrderItems(orders)` (z `updateInvInfo`) — nová faktura: každá zaškrtnutá zakázka přidá položku (`_oid`), odškrtnutí ji odebere (i upravenou). `INV_AUTO_DONE` = zakázky, které už položku mají.
+- Způsob platby: výchozí `prevodem`; prázdný = převodem (tisk i formulář). U úpravy se nezměněná hodnota uloží původní (`data-orig` na `#fpm`).
+
 ### Položky faktury — měrné jednotky
 - Položka v `items` (JSON): `{desc, note, qty, unit, price}`; `unit` z `INV_UNITS`, chybějící = `'ks'` (staré faktury). Žádný nový sloupec.
 - `unitOpts(u)` — options selectu; `getItemSuggestions()` vrací i `unit`, `updIIDesc` ji předvyplní. Množství může být desetinné (tisk s čárkou).
