@@ -33,6 +33,7 @@ Stop hook v `~/.claude/settings.json` automaticky commituje a pushuje každou zm
 - **Existující faktury se nikdy automaticky nemění** (výslovné přání uživatele). Auto-chování jen pro novou fakturu (`!INV_EDIT_ID`).
 - `syncInvOrderItems(orders)` (z `updateInvInfo`) — nová faktura: každá zaškrtnutá zakázka přidá položku (`_oid`), odškrtnutí ji odebere (i upravenou). `INV_AUTO_DONE` = zakázky, které už položku mají.
 - Položka může mít `oid` (zakázka, ke které patří); při ≥2 zakázkách je u položky select. `invAmtForOrder(inv, oid)` = podíl faktury na zakázce — používat všude místo `inv.amount` u součtů za zakázku (zbývá dofakturovat, karty, statistiky). Staré položky bez `oid`: shoda názvu zakázky, zbytek poměrem cen (jen výpočet, data se nemění; uživatel si staré faktury upraví ručně).
+- `ordValue(o)` — zobrazovaná hodnota zakázky: průběžná s fakturací = součet `invAmtForOrder` všech faktur (Vyfakturováno), jinak `o.price`. Výjimka: karta AKTIVNÍ průběžné zakázky ukazuje jen zaplacené faktury (`oinvsPaid`) — přání uživatele.
 - Způsob platby: výchozí `prevodem`; prázdný = převodem (tisk i formulář). U úpravy se nezměněná hodnota uloží původní (`data-orig` na `#fpm`).
 
 ### Položky faktury — měrné jednotky
