@@ -297,6 +297,25 @@ function addMissingHeaders() {
   Logger.log("Hotovo.");
 }
 
+// ─── Oprava názvů sloupců (spustit ručně jednou) ───────────────
+// Přepíše POUZE řádek 1 (hlavičku) v listech invoices a todos na názvy podle COLUMNS.
+// Řádky 2+ (data) nemění. Aplikace čte podle pozice, takže jde jen o popisky.
+function fixHeaders() {
+  ["invoices", "todos"].forEach(function(name) {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
+    if (!sheet) { Logger.log(name + ": list nenalezen"); return; }
+    const cols  = COLUMNS[name];
+    const range = sheet.getRange(1, 1, 1, cols.length);
+    const old   = range.getValues()[0];
+    cols.forEach(function(col, i) {
+      if (String(old[i] || "") !== col) Logger.log(name + ": sloupec " + (i + 1) + " '" + (old[i] || "") + "' → '" + col + "'");
+    });
+    range.setValues([cols]);
+  });
+  clearCache();
+  Logger.log("Hotovo.");
+}
+
 // ─── Migrace: opravit existující IČO (spustit ručně jednou) ────
 function fixExistingIco() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("clients");
