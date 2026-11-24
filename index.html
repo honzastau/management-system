@@ -811,6 +811,7 @@ function vOrders(){
     var pct=o.deadline?Math.min(100,Math.max(0,(new Date()-new Date(o.created))/(new Date(o.deadline)-new Date(o.created))*100)):0;
     var ex=expSum(o.id);var profit=ordValue(o)-ex;
     var oinvsPaid=!o.deadline?invsForOrder(o.id).filter(function(iv){return iv.status==='paid';}).reduce(function(s,iv){return s+invAmtForOrder(iv,o.id);},0):0;
+    if(!o.deadline&&!isCompleted)profit=oinvsPaid-ex;
     var oInvsCard=o.deadline&&o.price>0?invsForOrder(o.id):[];
     var invoicedCard=oInvsCard.reduce(function(s,i){return s+invAmtForOrder(i,o.id);},0);
     var remainingCard=invoicedCard>0?o.price-invoicedCard:0;
