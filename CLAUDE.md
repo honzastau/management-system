@@ -2,32 +2,31 @@
 
 ## Projekt
 Osobní management systém pro správu klientů, zakázek, faktur, měření času a výdajů.
-- **Frontend:** `index.html` — jeden soubor, vanilla JS, dark theme `#09090f`
-- **Backend:** Google Apps Script (`code.txt`) — CRUD přes Google Sheets
+- **Frontend:** `index.html` — jeden soubor, vanilla JS, světlý vzhled (`--bg:#f8fafc`)
+- **Backend:** Google Apps Script `code.gs` (v repu) — CRUD přes Google Sheets. **Nasazuje se ručně**: zkopírovat do Apps Script editoru → Deploy → Manage deployments → New version (URL zůstává). Auto-deploy hook ho NEnasazuje.
 - **Produkce:** GitHub Pages — https://github.com/honzastau/management-system
-- **DB tabulky:** clients, orders, entries, invoices, expenses, notes
+- **DB tabulky:** clients, orders, entries, invoices, expenses, notes, todos
+- **Bezpečnost dat:** uživatel výslovně nechce měnit/mazat existující data. Žádné migrace řádků bez souhlasu; nové sloupce jen na konec `COLUMNS` (sloupce se čtou podle pozice!).
 
 ## Auto-deploy
 Stop hook v `~/.claude/settings.json` automaticky commituje a pushuje každou změnu na GitHub. Není třeba commitovat ručně.
 
-## Development verze
-`index-dev.html` — kopie `index.html` pro testování větších změn, aniž by se zasáhlo do produkční verze.
-- `DEV_MODE=true` na začátku scriptu přepíná `loadAll()`/`mut()` na lokální mock — **žádné volání na Google Apps Script**, žádná reálná data.
-- Sample data v `SAMPLE_DATA` (4 klienti, 5 zakázek různých typů — s deadline, průběžná, hotovostní, archivovaná, 4 faktury ve stavech draft/sent/paid, entries, expenses, notes).
-- Mutace se ukládají do `localStorage` klíč `mgmt_dev_db` (persistence mezi reloady, ale odděleně od produkce). Reset na výchozí sample data = smazat tento klíč v localStorage.
-- Vizuálně odlišené: title "Management System (DEV)", červený "DEV" label v sidebaru.
-- Po pushi dostupné na `https://honzastau.github.io/management-system/index-dev.html` (stejný repo/branch jako produkce, jen jiný soubor).
-- **Změny v `index.html` a `index-dev.html` je nutné dělat odděleně** — kopírování větších úprav mezi soubory je ruční (žádný sdílený include).
-- Známý (již existující, needěláno v rámci dev verze) bug: `vDash()` u průběžných zakázek (`!o.deadline`) počítá `dl=NaN`, zobrazí se "NaNd" místo "∞ Průběžná zakázka" — projeví se i v produkci, pokud tam existuje průběžná zakázka.
+## Development režim
+`index.html?dev=1` (`index-dev.html` je jen přesměrování) — stejný soubor, žádné ruční přenášení změn.
+- `DEV_MODE` (z URL) → `sendOp()` volá `devOp()` místo serveru — **žádné volání na Google Apps Script**, žádná reálná data.
+- Testovací data `SAMPLE_DATA`; "server" je `localStorage` klíč `mgmt_dev_db` (reset = smazat klíč). Časovač má v dev vlastní klíč `mgmt_dev_timer`.
+- Lokální test: `file://` ztratí `?dev=1` a sáhl by na reálná data → testovat přes lokální HTTP server (např. node static server) na `http://127.0.0.1:PORT/index.html?dev=1`.
 
 ## Klíčové technické detaily
 
 ### Data flow
-- `loadAll()` — načte vše ze serveru, volá `normalizeInvoices()` na fakturách
-- `mut(action, sheet, payload)` — async zápis; aktualizuje lokální `DB` objekt a volá `render()`
-- `jsonStringFields = ["milestones", "items", "orderIds"]` — backend vrací jako JSON string, `normalizeInvoices()` parsuje centrálně v `loadAll()`
-- Po `mut('create'/'update', 'invoices')` server vrátí `items` jako string — `printInv()` a `openIM()` mají vlastní defensivní parsing
-
+- `loadAll(force)` — při startu okamžitě vykreslí data z cache `localStorage` (`mgmt_db_cache_v1`), pak dotáhne čerstvá ze serveru (`force` → `nocache=1`). `_dbLoaded` = čerstvá data ze serveru jsou načtená.
+- `mut(action, sheet, payload)` — klasický zápis přes frontu `enqueue()` (zápisy jdou postupně, až po načtení dat). Update připravený z dat z cache se neodešle (hláška „zopakuj akci“, `SkipErr`).
+- `mutFast(sheet,id,data)` / `mutBatchFast(sheet,items)` — okamžitá odezva (úkoly, milníky, stav faktury, řazení úkolů); při chybě `loadAll(true)`. Batch posílá `action:"batch"`, se starým backendem fallback na jednotlivé požadavky.
+- `rerender()` — překreslí i detail zakázky/klienta (`_curDetail`).
+- `invsForOrder(oid)` — jediné místo pro „faktury k zakázce“ (orderId i orderIds).
+- Backend: `LockService` na zápisy, `CacheService` pro getAll (generační klíč, TTL 5 min — ruční úprava v Sheets se projeví až do 5 min nebo po „Zkusit znovu“), jeden `setNumberFormats` + `setValues` na řádek, id/hledání řádku jen ze sloupce A.
+- `items`, `orderIds`, `milestones` backend vrací jako JSON string, `normalizeInvoices()` parsuje.
 ### Pasti v kódu
 - `render()` dispatch map **neobsahuje** `'orderDetail'` — volání `render()` z order detail view je no-op; použít `vOrderDetail(oid)` přímo
 - Průběžná zakázka = `!o.deadline` (žádný deadline)
@@ -82,8 +81,7 @@ Formát `YYYY-NNN` (např. `2026-009`), funkce `nin()`
 - **Editace záznamu**: `openEM(oid, editId)` a `saveE(returnOid, editId)` nyní podporují úpravu existujícího záznamu (tužka vedle koše v tabulkách ve `vTime()` i `vOrderDetail()`), místo pouze mazání. Pozor: select zakázky ve formuláři musí zahrnout i neaktivní zakázku editovaného záznamu (`o.status==='active'||o.id===selOid`), jinak by uložení záznamu u dokončené/archivované zakázky přehodilo záznam na jinou zakázku.
 - Názvy zakázek na kartách se zalamují (karta 320px), běžící karta má světle zelené pozadí `#ecfdf5`/`#86efac` (aplikace je ve světlém vzhledu).
 - Tabulka záznamů bez filtru ukazuje jen aktivní zakázky; záznamy dokončených jsou zašedlé pod rozbalovacím řádkem (`toggleTimeDone`).
-- `vTime()` je v obou souborech identická (2026-11-24) — při úpravách držet v synchronu.
-- Soubory mají CRLF a `index.html` UTF-8 s BOM — při skriptovaných úpravách zachovat.
+- `index.html` má CRLF a UTF-8 s BOM — při skriptovaných úpravách zachovat.
 
 ## Uživatel
 Jan Staudinger (honzastau), komunikace česky.

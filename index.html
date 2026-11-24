@@ -170,7 +170,7 @@ select.inp option{background:var(--bg-in)}
     <div class="nav-bot"><div id="nav-rev-lbl">Obrat letos</div><div class="mono" id="nav-rev" style="color:var(--ac);font-weight:800;font-size:14px">0 Kč</div></div>
   </nav>
   <div id="main">
-    <div id="err-bar"><span id="err-msg"></span><button class="btn bg btn-sm" style="margin-left:auto" onclick="loadAll()">Zkusit znovu</button></div>
+    <div id="err-bar"><span id="err-msg"></span><button class="btn bg btn-sm" style="margin-left:auto" onclick="loadAll(true)">Zkusit znovu</button></div>
     <div id="timer-bar">
       <span class="dot" id="td" style="width:12px;height:12px"></span>
       <div style="flex:1"><div style="font-size:12px;color:#64748b" id="ton"></div>
@@ -185,7 +185,8 @@ select.inp option{background:var(--bg-in)}
 <div id="sync">⟳ Ukládám…</div>
 <div id="tt"></div>
 <script>
-window.onerror=function(msg,src,line,col,err){document.body.innerHTML='<div style="background:#f8fafc;color:#dc2626;padding:40px;font-family:sans-serif;min-height:100vh"><h2>Chyba aplikace</h2><p>'+msg+'</p><small>Řádek: '+line+'</small></div>';return false;};
+// Chyba v JS nesmí zbořit celou aplikaci — ukázat ji v chybové liště
+window.onerror=function(msg,src,line){try{var b=document.getElementById('err-bar'),m=document.getElementById('err-msg');if(b&&m){m.textContent='Chyba aplikace: '+msg+' (řádek '+line+')';b.style.display='flex';}}catch(x){}return false;};
 const DB={clients:[],orders:[],entries:[],invoices:[],expenses:[],notes:[],todos:[]};
 const TODO_COLORS=['','#ef4444','#f97316','#fbbf24','#10b981','#3b82f6','#8b5cf6'];
 let _todoDragId=null;
@@ -198,6 +199,67 @@ const COLORS=['#f59e0b','#3b82f6','#10b981','#ef4444','#8b5cf6','#ec4899','#06b6
 function autoAssignColor(){var used=DB.clients.map(function(c){return c.color;});var free=COLORS.filter(function(c){return !used.includes(c);});return free.length?free[0]:COLORS[DB.clients.length%COLORS.length];}
 const STAGES=['Poptávka','Nabídka','Projekce','Realizace','Předání','Fakturováno','Zaplaceno'];
 const EXP_CATS=['Materiál','Práce','Subdodávka','Doprava','Nářadí','Režie','Ostatní'];
+const DEV_MODE=/[?&]dev=1(&|$)/.test(location.search);
+const DEV_DB_KEY='mgmt_dev_db';
+const SAMPLE_DATA={
+  clients:[
+    {id:1,name:'Petr Novák',company:'Novák Trading s.r.o.',email:'petr@novaktrading.cz',phone:'+420 601 111 222',address:'Hlavní 12',city:'Praha',zip:'11000',ico:'12345678',dic:'CZ12345678',notes:'Pravidelný klient, platí včas.',color:'#3b82f6'},
+    {id:2,name:'Jana Dvořáková',company:'',email:'jana.dvorakova@email.cz',phone:'+420 602 333 444',address:'Nádražní 5',city:'Brno',zip:'60200',ico:'',dic:'',notes:'',color:'#10b981'},
+    {id:3,name:'Tomáš Král',company:'Král Design',email:'tomas@kraldesign.cz',phone:'+420 603 555 666',address:'Květná 8',city:'Ostrava',zip:'70200',ico:'87654321',dic:'CZ87654321',notes:'Preferuje komunikaci mailem.',color:'#f59e0b'},
+    {id:4,name:'Eva Malá',company:'Malá & partneři',email:'eva@malapartneri.cz',phone:'+420 604 777 888',address:'Dlouhá 22',city:'Plzeň',zip:'30100',ico:'11223344',dic:'CZ11223344',notes:'',color:'#8b5cf6'}
+  ],
+  orders:[
+    {id:1,name:'Redesign e-shopu',clientId:1,description:'Kompletní redesign e-shopu včetně nového katalogu produktů.',price:85000,currency:'CZK',deadline:'2026-08-15',created:'2026-06-01',noInvoice:false,paidDate:'',color:'#3b82f6',status:'active',delivered:'',milestones:JSON.stringify([{label:'Návrh UI',date:'2026-06-20',note:'',done:true},{label:'Frontend',date:'2026-07-20',note:'',done:true},{label:'Testování',date:'2026-08-05',note:'',done:false}])},
+    {id:2,name:'Firemní web',clientId:2,description:'Nové firemní prezentační stránky.',price:45000,currency:'CZK',deadline:'2026-07-10',created:'2026-05-15',noInvoice:false,paidDate:'',color:'#10b981',status:'active',delivered:'',milestones:JSON.stringify([{label:'Návrh',date:'2026-05-25',note:'',done:true},{label:'Vývoj',date:'2026-06-20',note:'',done:true}])},
+    {id:3,name:'Logo a vizuální identita',clientId:3,description:'Návrh loga a manuálu značky.',price:25000,currency:'CZK',deadline:'',created:'2026-04-10',noInvoice:false,paidDate:'',color:'#f59e0b',status:'active',delivered:'',milestones:'[]'},
+    {id:4,name:'Konzultace na místě',clientId:4,description:'Jednorázová konzultace, platba v hotovosti.',price:5000,currency:'CZK',deadline:'2026-07-01',created:'2026-06-25',noInvoice:true,paidDate:'2026-07-01',color:'#8b5cf6',status:'completed',delivered:'2026-07-01',milestones:'[]'},
+    {id:5,name:'SEO optimalizace',clientId:1,description:'Měsíční SEO optimalizace webu.',price:15000,currency:'CZK',deadline:'',created:'2026-03-01',noInvoice:false,paidDate:'',color:'#3b82f6',status:'archived',delivered:'',milestones:'[]'}
+  ],
+  entries:[
+    {id:1,orderId:1,description:'Návrh wireframů',duration:14400,date:'2026-06-18'},
+    {id:2,orderId:1,description:'Implementace homepage',duration:21600,date:'2026-07-05'},
+    {id:3,orderId:1,description:'Responsivní úpravy',duration:10800,date:'2026-07-18'},
+    {id:4,orderId:2,description:'Návrh grafiky',duration:7200,date:'2026-05-20'},
+    {id:5,orderId:2,description:'Kódování stránek',duration:18000,date:'2026-06-10'},
+    {id:6,orderId:3,description:'Skicování variant loga',duration:5400,date:'2026-04-15'},
+    {id:7,orderId:3,description:'Finalizace manuálu',duration:9000,date:'2026-05-02'},
+    {id:8,orderId:4,description:'Konzultace na místě',duration:3600,date:'2026-07-01'},
+    {id:9,orderId:5,description:'Analýza klíčových slov',duration:5400,date:'2026-03-10'},
+    {id:10,orderId:5,description:'Optimalizace meta popisků',duration:3600,date:'2026-03-20'}
+  ],
+  invoices:[
+    {id:1,orderId:1,orderIds:[1],clientId:1,recipient:'Novák Trading s.r.o.',items:[{desc:'Redesign e-shopu - záloha',note:'',qty:1,price:40000}],amount:40000,currency:'CZK',dueDate:'2026-08-10',note:'',issued:'2026-07-01',duzp:'2026-07-01',number:'2026-001',status:'paid',paidDate:'2026-07-05'},
+    {id:2,orderId:2,orderIds:[2],clientId:2,recipient:'Jana Dvořáková',items:[{desc:'Firemní web - kompletní realizace',note:'',qty:1,price:45000}],amount:45000,currency:'CZK',dueDate:'2026-07-15',note:'',issued:'2026-06-25',duzp:'2026-06-25',number:'2026-002',status:'sent'},
+    {id:3,orderId:3,orderIds:[3],clientId:3,recipient:'Král Design',items:[{desc:'Logo a manuál značky',note:'',qty:1,price:25000}],amount:25000,currency:'CZK',dueDate:'2026-08-20',note:'',issued:'2026-07-25',duzp:'2026-07-25',number:'2026-003',status:'draft'},
+    {id:4,orderId:1,orderIds:[1],clientId:1,recipient:'Novák Trading s.r.o.',items:[{desc:'Redesign e-shopu - doplatek',note:'',qty:1,price:45000}],amount:45000,currency:'CZK',dueDate:'2026-08-25',note:'',issued:'2026-07-28',duzp:'2026-07-28',number:'2026-004',status:'draft'}
+  ],
+  expenses:[
+    {id:1,orderId:1,description:'Licence na stock fotky',amount:1200,category:'Software',date:'2026-06-15'},
+    {id:2,orderId:2,description:'Webhosting na rok',amount:2400,category:'Hosting',date:'2026-05-20'},
+    {id:3,orderId:3,description:'Tisk vzorníku barev',amount:450,category:'Materiál',date:'2026-04-28'}
+  ],
+  notes:[
+    {id:1,orderId:1,text:'Klient chce přidat filtr podle barvy produktu.',created:'2026-07-10'},
+    {id:2,orderId:2,text:'Čekáme na finální texty od klienta.',created:'2026-06-01'},
+    {id:3,orderId:4,text:'Platba přijata v hotovosti na schůzce.',created:'2026-07-01'}
+  ],
+  todos:[
+    {id:1,text:'Poslat nabídku Evě Malé',done:false,created:'2026-07-20',color:'#3b82f6',order:10},
+    {id:2,text:'Zkontrolovat platbu za fakturu 2026-002',done:false,created:'2026-07-25',color:'#ef4444',order:20},
+    {id:3,text:'Objednat vizitky',done:true,created:'2026-07-10',color:'',order:30}
+  ]
+};
+function devLoad(){try{var raw=LS.getItem(DEV_DB_KEY);return raw?JSON.parse(raw):JSON.parse(JSON.stringify(SAMPLE_DATA));}catch(e){return JSON.parse(JSON.stringify(SAMPLE_DATA));}}
+// Dev "server": testovací data v localStorage (klíč mgmt_dev_db), chová se jako backend
+function devOp(op){
+  var s=devLoad();var sh=op.sheet;if(!s[sh])s[sh]=[];var d;
+  if(op.action==='create'){d=Object.assign({},op.data);d.id=s[sh].reduce(function(m,r){return Math.max(m,Number(r.id)||0);},0)+1;s[sh].push(d);}
+  else if(op.action==='update'){var i=s[sh].findIndex(function(r){return Number(r.id)===Number(op.id);});if(i<0)throw new Error('Záznam id='+op.id+' nenalezen v '+sh);d=Object.assign({},op.data,{id:Number(op.id)});s[sh][i]=d;}
+  else if(op.action==='delete'){d={id:Number(op.id)};s[sh]=s[sh].filter(function(r){return Number(r.id)!==Number(op.id);});}
+  else throw new Error('Neznámá akce: '+op.action);
+  LS.setItem(DEV_DB_KEY,JSON.stringify(s));return JSON.parse(JSON.stringify(d));
+}
+function devMarkUI(){document.title='Management System (DEV)';var t=document.querySelector('.nav-logo .t');if(t)t.innerHTML='Management <span style="color:#ef4444">DEV</span>';var s=document.querySelector('.nav-logo .s');if(s)s.textContent='System v2 — testovací data';}
 
 const $=id=>document.getElementById(id);
 // Bezpečný localStorage — v sandboxu (data: URL / preview) je Storage zakázaný, fallback na paměť
@@ -221,12 +283,15 @@ function normDate(d){
 }
 const fmtDur=s=>{const h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h===0?m+' min':m===0?h+' hod':h+'h '+m+'m';};
 const fmtT=s=>String(Math.floor(s/3600)).padStart(2,'0')+':'+String(Math.floor((s%3600)/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
-const today=()=>new Date().toISOString().slice(0,10);
+function localISO(dt){return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');}
+const today=()=>localISO(new Date());
 const e=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const ts=oid=>DB.entries.filter(x=>x.orderId===oid).reduce((s,x)=>s+(x.duration||0),0);
 const gc=id=>DB.clients.find(c=>c.id===Number(id));
 const go=id=>DB.orders.find(o=>o.id===Number(id));
 const expSum=oid=>DB.expenses.filter(x=>x.orderId===oid).reduce((s,x)=>s+(x.amount||0),0);
+// Faktury navázané na zakázku (orderId nebo orderIds) — jediné místo pro tuhle logiku
+function invsForOrder(oid){oid=Number(oid);return DB.invoices.filter(function(i){var ids=Array.isArray(i.orderIds)?i.orderIds.map(Number):[];return Number(i.orderId)===oid||ids.indexOf(oid)>=0;});}
 function isNoInv(o){return o&&(o.noInvoice===true||o.noInvoice==='true'||o.noInvoice==='TRUE'||o.noInvoice===1||o.noInvoice==='1');}
 function isDone(t){return t&&(t.done===true||t.done==='true'||t.done==='TRUE'||t.done===1||t.done==='1');}
 function todoOrderVal(t){return(t&&t.order!==undefined&&t.order!==null&&t.order!=='')?Number(t.order):-(t?t.id:0);}
@@ -250,19 +315,22 @@ var ICONS={
  close:'M18 18L12 12M12 12L6 6M12 12L18 6M12 12L6 18'
 };
 function ic(n,sz){var s=sz||16;return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" style="vertical-align:-0.18em;flex-shrink:0;display:inline-block"><path d="'+ICONS[n]+'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';}
-const nin=()=>{const y=new Date().getFullYear();const n=DB.invoices.filter(i=>String(i.number||'').includes(String(y))).length+1;return y+'-'+String(n).padStart(3,'0');};
+// Další číslo faktury = nejvyšší existující pořadové číslo v roce + 1 (ne počet faktur — po smazání by vznikl duplikát)
+const nin=()=>{const y=String(new Date().getFullYear());const re=new RegExp('^'+y+'-(\\d+)$');const mx=DB.invoices.reduce(function(m,i){var r=re.exec(String(i.number||'').trim());return r?Math.max(m,Number(r[1])):m;},0);return y+'-'+String(mx+1).padStart(3,'0');};
 const prof=()=>{try{return JSON.parse(LS.getItem('mgmt_profile')||'{}');}catch(e){return{};}};
 function sFilter(items,q,fields){if(!q)return items;const s=q.toLowerCase();return items.filter(it=>fields.some(f=>{const v=typeof f==='function'?f(it):it[f];return String(v||'').toLowerCase().includes(s);}));}
-function searchBox(ph){return '<div class="search-bar"><input class="inp" placeholder="'+ph+'" value="'+e(SEARCH)+'" oninput="SEARCH=this.value;render()"></div>';}
+function searchBox(ph){return '<div class="search-bar"><input class="inp" id="search-inp" placeholder="'+ph+'" value="'+e(SEARCH)+'" oninput="onSearch(this)"></div>';}
+// Překreslení nahradí i vyhledávací pole — vrátit do něj fokus a kurzor
+function onSearch(el){var pos=el.selectionStart;SEARCH=el.value;render();var n=$('search-inp');if(n){n.focus();try{n.setSelectionRange(pos,pos);}catch(err){}}}
 function showTTK(ev,k){var t=$('tt');t.innerHTML=_TTMAP[k]||'';t.style.display='block';posTT(ev);}
 function posTT(ev){var t=$('tt');var x=ev.clientX+14,y=ev.clientY-60;if(x+200>window.innerWidth)x=ev.clientX-214;if(y<4)y=ev.clientY+12;t.style.left=x+'px';t.style.top=y+'px';}
 function hideTT(){var t=$('tt');if(t)t.style.display='none';}
 
 function getUrl(){return LS.getItem('mgmt_url')||'https://script.google.com/macros/s/AKfycbx7XZIuDehegQ55hGRBLEmdFtyidiAuX_6UqBni0SGw99CmT719o5KXW21IuZinEt8bKA/exec';}
 function autoColor(){var cid=Number($('fcl')&&$('fcl').value||0);var c=gc(cid);if(c&&c.color){FC=c.color;document.querySelectorAll('.cs').forEach(function(x){x.classList.toggle('sel',x.style.background===c.color||x.style.backgroundColor===c.color);});}}
-function dueIn(days){var d=new Date();d.setDate(d.getDate()+days);return d.toISOString().slice(0,10);}
+function dueIn(days){var d=new Date();d.setDate(d.getDate()+days);return localISO(d);}
 function saveUrl(){var u=$('setup-url').value.trim();if(!u)return;LS.setItem('mgmt_url',u);boot();}
-document.addEventListener('DOMContentLoaded',function(){var bm=document.getElementById('boot-msg');if(bm)bm.style.display='none';try{if(!getUrl()){$('setup').style.display='flex';}else boot();}catch(err){document.body.innerHTML='<div style="color:var(--er);padding:40px;font-family:sans-serif">JS Error: '+err.message+'<br><small>'+err.stack+'</small></div>';}});
+document.addEventListener('DOMContentLoaded',function(){var bm=document.getElementById('boot-msg');if(bm)bm.style.display='none';try{if(DEV_MODE){devMarkUI();boot();}else if(!getUrl()){$('setup').style.display='flex';}else boot();}catch(err){document.body.innerHTML='<div style="color:var(--er);padding:40px;font-family:sans-serif">JS Error: '+err.message+'<br><small>'+err.stack+'</small></div>';}});
 function boot(){$('setup').style.display='none';$('app').style.display='flex';loadAll();}
 
 async function apiFetch(p){var r=await fetch(getUrl()+'?'+new URLSearchParams(p));var j=await r.json();if(j.error)throw new Error(j.error);return j;}
@@ -277,23 +345,95 @@ function normalizeInvoices(invs){
     return inv;
   });
 }
-async function loadAll(){
-  html('<div style="text-align:center;padding:80px;color:#475569">⟳ Načítám data…</div>');
-  try{var d=await apiFetch({action:'getAll'});
-    DB.clients=d.clients||[];DB.orders=d.orders||[];DB.entries=d.entries||[];DB.invoices=normalizeInvoices(d.invoices||[]);DB.expenses=d.expenses||[];DB.notes=d.notes||[];DB.todos=d.todos||[];
-    hideErr();badges();restoreTimer();render();
-  }catch(err){showErr(err.message);html('<div style="text-align:center;padding:80px;color:#475569">Chyba načítání.<br><small>'+e(err.message)+'</small></div>');}
+// ═══ DATA: načítání, cache, fronta zápisů ═══════════════════
+// Data z minula se uloží do localStorage → aplikace se při startu vykreslí okamžitě
+// a čerstvá data ze serveru se dotáhnou na pozadí. Cache se jen ČTE pro zobrazení,
+// zápisy vždy čekají, než doběhne načtení čerstvých dat ze serveru.
+const CACHE_DB_KEY='mgmt_db_cache_v1';
+var _loadP=Promise.resolve();var _dbLoaded=false;var _curDetail=null;var _syncN=0;
+function applyData(d){DB.clients=d.clients||[];DB.orders=d.orders||[];DB.entries=d.entries||[];DB.invoices=normalizeInvoices(d.invoices||[]);DB.expenses=d.expenses||[];DB.notes=d.notes||[];DB.todos=d.todos||[];}
+function saveDbCache(){if(DEV_MODE||!_dbLoaded)return;try{localStorage.setItem(CACHE_DB_KEY,JSON.stringify({t:Date.now(),db:DB}));}catch(err){}}
+function readDbCache(){if(DEV_MODE)return null;try{var c=JSON.parse(localStorage.getItem(CACHE_DB_KEY)||'null');return c&&c.db?c:null;}catch(err){return null;}}
+// render() neumí detail zakázky/klienta — tohle překreslí i je
+function rerender(){if(curView==='orderDetail'&&_curDetail)vOrderDetail(_curDetail);else if(curView==='clientDetail'&&_curDetail)vClientDetail(_curDetail);else render();}
+function syncOn(txt){_syncN++;var s=$('sync');s.textContent=txt||'⟳ Ukládám…';s.style.display='block';}
+function syncOff(){_syncN=Math.max(0,_syncN-1);if(!_syncN)$('sync').style.display='none';}
+
+function loadAll(force){_loadP=_loadAll(force);return _loadP;}
+async function _loadAll(force){
+  if(DEV_MODE){applyData(devLoad());_dbLoaded=true;hideErr();badges();restoreTimer();rerender();return;}
+  var fromCache=false;
+  if(!_dbLoaded&&!force){var c=readDbCache();if(c){applyData(c.db);fromCache=true;badges();restoreTimer();rerender();}}
+  if(!_dbLoaded&&!fromCache)html('<div style="text-align:center;padding:80px;color:#475569">⟳ Načítám data…</div>');
+  syncOn('⟳ Aktualizuji data…');
+  try{var p={action:'getAll'};if(force)p.nocache=1;
+    var d=await apiFetch(p);
+    applyData(d);_dbLoaded=true;
+    hideErr();badges();restoreTimer();rerender();saveDbCache();
+  }catch(err){
+    showErr(err.message);
+    if(!_dbLoaded&&!fromCache)html('<div style="text-align:center;padding:80px;color:#475569">Chyba načítání.<br><small>'+e(err.message)+'</small></div>');
+    else toast('Nepodařilo se načíst čerstvá data — zobrazuji uložená','error');
+  }finally{syncOff();}
 }
 
-async function mut(action,sheet,payload){
-  $('sync').style.display='block';
-  try{var res=await apiPost({action:action,sheet:sheet,...payload});var d=res.data;
-    if(action==='create')DB[sheet].push(d);
-    if(action==='update'){var i=DB[sheet].findIndex(r=>r.id===d.id);if(i>-1)DB[sheet][i]=d;}
-    if(action==='delete')DB[sheet]=DB[sheet].filter(r=>r.id!==d.id);
-    badges();render();return d;
-  }catch(err){showErr(err.message);toast(err.message,'error');}
-  finally{$('sync').style.display='none';}
+// Všechny zápisy jdou postupně jeden po druhém (žádné souběžné požadavky) a až po načtení dat.
+var _mutQ=Promise.resolve();
+function enqueue(fn){var p=_mutQ.then(function(){return _loadP;}).catch(function(){}).then(fn);_mutQ=p.catch(function(){});return p;}
+async function sendOp(op){if(DEV_MODE)return devOp(op);var res=await apiPost(op);return res.data;}
+function applyLocal(action,sheet,d){
+  if(!d)return;
+  if(sheet==='invoices'&&action!=='delete')d=normalizeInvoices([d])[0];
+  if(action==='create')DB[sheet].push(d);
+  if(action==='update'){var i=DB[sheet].findIndex(function(r){return Number(r.id)===Number(d.id);});if(i>-1)DB[sheet][i]=d;}
+  if(action==='delete')DB[sheet]=DB[sheet].filter(function(r){return Number(r.id)!==Number(d.id);});
+}
+function clone(o){return JSON.parse(JSON.stringify(o));}
+// Zápis záměrně neproběhl (hláška už byla zobrazena) — přeruší navazující "uloženo" hlášky volajícího
+function SkipErr(){this.message='skip';this.skip=true;}
+window.addEventListener('unhandledrejection',function(ev){if(ev.reason&&ev.reason.skip)ev.preventDefault();});
+
+// Klasický zápis: počká na server, pak aktualizuje data
+function mut(action,sheet,payload){
+  var op=clone(Object.assign({action:action,sheet:sheet},payload));
+  // Úprava připravená z dat z cache se neposílá (mohla by přepsat novější stav na serveru).
+  // Nový záznam / smazání se po načtení odešle normálně (nic nepřepisuje, nic se neztratí).
+  var staleUpdate=action==='update'&&!_dbLoaded;
+  return enqueue(async function(){
+    if(!_dbLoaded){toast('Data ze serveru nejsou načtená — nic se neuložilo. Klikni na „Zkusit znovu“.','error');throw new SkipErr();}
+    if(staleUpdate){toast('Data se právě aktualizovala — zopakuj prosím akci.','info');rerender();throw new SkipErr();}
+    syncOn();
+    try{var d=await sendOp(op);applyLocal(action,sheet,d);badges();render();saveDbCache();return d;}
+    catch(err){showErr(err.message);toast(err.message,'error');}
+    finally{syncOff();}
+  });
+}
+// Okamžitá odezva: úprava se projeví hned, server se uloží na pozadí.
+// Když uložení selže, data se znovu načtou ze serveru (UI = skutečný stav).
+function mutFast(sheet,id,data){return mutBatchFast(sheet,[{id:id,data:data}]);}
+async function mutBatchFast(sheet,items){
+  // Zápis nikdy nevychází z dat z cache — nejdřív počkat na čerstvá data ze serveru
+  // (změna byla připravená ze starých dat → po načtení ji neposílat, ať nepřepíše novější stav)
+  if(!_dbLoaded){await _loadP;toast(_dbLoaded?'Data se právě aktualizovala — zopakuj prosím akci.':'Data ze serveru nejsou načtená — nic se neuložilo. Klikni na „Zkusit znovu“.','info');return;}
+  var ops=items.map(function(it){
+    var row=clone(Object.assign({},it.data,{id:Number(it.id)}));
+    applyLocal('update',sheet,clone(row));
+    return {action:'update',sheet:sheet,id:Number(it.id),data:row};
+  });
+  badges();rerender();saveDbCache();
+  return enqueue(async function(){
+    syncOn();
+    try{
+      if(DEV_MODE){ops.forEach(devOp);}
+      else if(ops.length===1){await apiPost(ops[0]);}
+      else{
+        try{await apiPost({action:'batch',ops:ops});}
+        catch(err){if(!/Neznámá akce/.test(err.message))throw err;for(var i=0;i<ops.length;i++)await apiPost(ops[i]);} // starší backend bez batch
+      }
+      saveDbCache();
+    }catch(err){showErr(err.message);toast('Změnu se nepodařilo uložit: '+err.message,'error');loadAll(true);}
+    finally{syncOff();}
+  });
 }
 
 function toast(msg,type){
@@ -332,7 +472,7 @@ function toggleSidebar(){$('sidebar').classList.toggle('open');$('sidebar-ov').c
 function closeSidebar(){$('sidebar').classList.remove('open');$('sidebar-ov').classList.remove('open');}
 
 
-const TIMER_KEY='mgmt_timer';
+const TIMER_KEY=DEV_MODE?'mgmt_dev_timer':'mgmt_timer'; // dev nesmí sdílet časovač s produkcí
 function persistTimer(){
   if(TS.running)LS.setItem(TIMER_KEY,JSON.stringify({orderId:TS.orderId,startedAt:TS.startedAt,desc:TS.desc||''}));
   else LS.setItem(TIMER_KEY,'');
@@ -417,7 +557,8 @@ function printInv(id){
   var items=Array.isArray(inv.items)?inv.items:(typeof inv.items==='string'&&inv.items?JSON.parse(inv.items):[]);
   var vs=(inv.number||'').replace(/\D/g,'');
   var spd=p.iban?'SPD*1.0*ACC:'+p.iban+'*AM:'+(inv.amount||0).toFixed(2)+'*CC:'+(inv.currency||'CZK')+'*MSG:'+inv.number+(vs?'*X-VS:'+vs:''):'';
-  var qr=spd?'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data='+encodeURIComponent(spd):'';
+  // QR se generuje přímo v okně faktury (knihovna qrcode-generator) — IBAN a částka se nikam neposílají
+  var qr=!!spd;
   var itemRows=items.map(function(it,i){
     var tot=(Number(it.qty)||0)*(Number(it.price)||0);
     return '<tr style="background:'+(i%2?'#f8fafc':'#fff')+'">'
@@ -509,7 +650,9 @@ function printInv(id){
   if(vs)w.document.write('<div class="p-lbl">Variabilní symbol</div><div class="p-val">'+vs+'</div>');
   w.document.write('</div>');
   w.document.write('<div class="pay-col center">');
-  if(qr)w.document.write('<div style="text-align:center"><img src="'+qr+'" width="85" height="85"/><div style="font-size:9px;color:#64748b;margin-top:3px;text-transform:uppercase;letter-spacing:.04em">QR Platba</div></div>');
+  if(qr)w.document.write('<div style="text-align:center"><div id="qr-box" style="width:85px;height:85px;margin:0 auto"></div>'
+    +'<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"><\/script>'
+    +'<script>try{var q=qrcode(0,"M");q.addData('+JSON.stringify(spd).replace(/</g,'\\u003c')+');q.make();var b=document.getElementById("qr-box");b.innerHTML=q.createImgTag(4,0);var im=b.querySelector("img");if(im){im.style.width="85px";im.style.height="85px";im.style.imageRendering="pixelated";}}catch(err){}<\/script><div style="font-size:9px;color:#64748b;margin-top:3px;text-transform:uppercase;letter-spacing:.04em">QR Platba</div></div>');
   w.document.write('</div>');
   w.document.write('<div class="pay-col">');
   if(inv.duzp)w.document.write('<div class="p-lbl">Datum UZP</div><div class="p-val">'+fmtD(inv.duzp)+'</div>');
@@ -585,7 +728,7 @@ function vClients(){
 }
 
 function vClientDetail(id){
-  var c=gc(id);if(!c)return;curView='clientDetail';
+  var c=gc(id);if(!c)return;curView='clientDetail';_curDetail=id;
   var co=DB.orders.filter(function(o){return Number(o.clientId)===id;});
   var ce=DB.entries.filter(function(x){return co.some(function(o){return o.id===x.orderId;});});
   var or=co.map(function(o){return '<tr style="cursor:pointer" onclick="vOrderDetail('+o.id+')"><td><div style="display:flex;align-items:center;gap:8px"><span class="dot" style="background:'+e(o.color)+'"></span><span style="font-weight:600">'+e(o.name)+'</span></div></td><td><span class="stag" style="color:'+(o.status==='completed'?'#059669':'var(--tx2)')+'">'+(o.status==='completed'?'✓ Dokončeno':o.status==='archived'?'Archivováno':'Aktivní')+'</span></td><td class="mono" style="color:#8b5cf6">'+fmtDur(ts(o.id))+'</td><td class="mono" style="color:var(--ac);font-weight:700">'+fmtM(o.price)+'</td><td style="color:#64748b;font-size:12px">'+fmtD(o.deadline)+'</td></tr>';}).join('');
@@ -602,8 +745,8 @@ function vOrders(){
     var dl=Math.ceil((new Date(o.deadline)-new Date())/86400000);
     var pct=o.deadline?Math.min(100,Math.max(0,(new Date()-new Date(o.created))/(new Date(o.deadline)-new Date(o.created))*100)):0;
     var ex=expSum(o.id);var profit=o.price-ex;
-    var oinvsPaid=!o.deadline?DB.invoices.filter(function(iv){return iv.status==='paid'&&(Number(iv.orderId)===o.id||(Array.isArray(iv.orderIds)&&iv.orderIds.map(Number).indexOf(o.id)>-1));}).reduce(function(s,iv){return s+(iv.amount||0);},0):0;
-    var oInvsCard=o.deadline&&o.price>0?DB.invoices.filter(function(i){var ids=Array.isArray(i.orderIds)?i.orderIds.map(Number):[];return Number(i.orderId)===o.id||ids.indexOf(o.id)>=0;}):[];
+    var oinvsPaid=!o.deadline?invsForOrder(o.id).filter(function(iv){return iv.status==='paid';}).reduce(function(s,iv){return s+(iv.amount||0);},0):0;
+    var oInvsCard=o.deadline&&o.price>0?invsForOrder(o.id):[];
     var invoicedCard=oInvsCard.reduce(function(s,i){return s+(i.amount||0);},0);
     var remainingCard=invoicedCard>0?o.price-invoicedCard:0;
     var bc=e(o.color);
@@ -881,19 +1024,16 @@ async function saveMilestones(oid,ms){
   var o=go(oid);if(!o)return toast('Zakázka nenalezena','error');
   // Vytvořit čistý datový objekt bez problematických referencí
   var data=Object.assign({},o,{milestones:JSON.stringify(ms)});
-  // Zajistit že delivered zůstane
-  if(o.delivered)data.delivered=o.delivered;
-  var result=await mut('update','orders',{id:oid,data:data});
-  if(result)vOrderDetail(oid);
+  await mutFast('orders',oid,data); // okamžitě se překreslí (rerender), server na pozadí
 }
 
 function vOrderDetail(id){
-  var o=go(id);if(!o)return;curView='orderDetail';
+  var o=go(id);if(!o)return;curView='orderDetail';_curDetail=id;
   var cl=gc(o.clientId);var isR=TS.running&&TS.orderId===o.id;
   var dl=Math.ceil((new Date(o.deadline)-new Date())/86400000);
   var tSec=ts(o.id);var ex=expSum(o.id);var profit=o.price-ex;
   var stColor=o.status==='completed'?'#059669':o.status==='archived'?'#475569':'#d97706';
-  var oInvs=DB.invoices.filter(function(i){var ids=Array.isArray(i.orderIds)?i.orderIds:(typeof i.orderIds==='string'&&i.orderIds?JSON.parse(i.orderIds):[]);return i.orderId===o.id||ids.map(Number).indexOf(o.id)>=0;});
+  var oInvs=invsForOrder(o.id);
   var invoicedTotal=oInvs.reduce(function(s,i){return s+(i.amount||0);},0);
   var remaining=o.price-invoicedTotal;
   var paidInv=oInvs.find(function(i){return i.status==='paid';});
@@ -927,7 +1067,7 @@ function vOrderDetail(id){
       +'<td class="mono" style="color:#ef4444;font-weight:700">'+fmtM(x.amount)+'</td>'
       +'<td><button class="btn bd btn-sm" style="padding:2px 7px;font-size:11px" onclick="delExp('+x.id+','+o.id+')">'+ic('trash')+'</button></td></tr>';
   }).join('');
-  var invs=DB.invoices.filter(function(i){var ids=Array.isArray(i.orderIds)?i.orderIds:(typeof i.orderIds==='string'&&i.orderIds?JSON.parse(i.orderIds):[]);return i.orderId===o.id||ids.map(Number).indexOf(o.id)>=0;});
+  var invs=invsForOrder(o.id);
   var invsH=invs.map(function(inv){
     var sc=inv.status==='paid'?{c:'#059669',l:'Zaplaceno'}:inv.status==='sent'?{c:'#d97706',l:'Odesláno'}:{c:'#64748b',l:'Koncept'};
     return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)">'
@@ -1171,7 +1311,7 @@ function vReports(selYr){
   var eCatArr=Object.entries(eCats).sort(function(a,b){return b[1]-a[1];});
   var maxE=Math.max.apply(null,eCatArr.map(function(p){return p[1];}).concat([1]));
   var eCatH=eCatArr.map(function(p){return '<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:var(--tx2)">'+e(p[0])+'</span><span class="mono" style="color:#ef4444;font-weight:700">'+fmtM(p[1])+'</span></div><div class="pb"><div class="pf" style="width:'+(p[1]/maxE)*100+'%;background:#ef4444"></div></div></div>';}).join('');
-  var toInvOrds=DB.orders.filter(function(o){return o.status==='completed'&&o.deadline&&o.price>0&&!isNoInv(o);}).map(function(o){var linked=DB.invoices.filter(function(i){var ids=Array.isArray(i.orderIds)?i.orderIds.map(Number):[];return Number(i.orderId)===o.id||ids.indexOf(o.id)>=0;});var inv=linked.reduce(function(s,i){return s+(i.amount||0);},0);return{o:o,inv:inv,rem:o.price-inv};}).filter(function(x){return x.inv>0&&x.rem>0;}).sort(function(a,b){return b.rem-a.rem;});
+  var toInvOrds=DB.orders.filter(function(o){return o.status==='completed'&&o.deadline&&o.price>0&&!isNoInv(o);}).map(function(o){var linked=invsForOrder(o.id);var inv=linked.reduce(function(s,i){return s+(i.amount||0);},0);return{o:o,inv:inv,rem:o.price-inv};}).filter(function(x){return x.inv>0&&x.rem>0;}).sort(function(a,b){return b.rem-a.rem;});
   var toInvTotal=toInvOrds.reduce(function(s,x){return s+x.rem;},0);
   var toInvH=toInvOrds.slice(0,8).map(function(x){var cl=gc(x.o.clientId);return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:12px"><span class="dot" style="background:'+e(x.o.color||'#f59e0b')+'"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(x.o.name)+'</span><span style="color:#64748b;flex-shrink:0;margin-right:8px">'+e(cl?cl.company||cl.name:'')+'</span><span class="mono" style="color:var(--ac);font-weight:700;flex-shrink:0">'+fmtM(x.rem)+'</span></div>';}).join('');
   var tByClient={};
@@ -1328,7 +1468,7 @@ async function saveTodoM(){
 }
 async function toggleTodo(id){
   var t=DB.todos.find(function(x){return x.id===id;});if(!t)return;
-  await mut('update','todos',{id:id,data:Object.assign({},t,{done:!isDone(t)})});
+  mutFast('todos',id,Object.assign({},t,{done:!isDone(t)}));
 }
 function delTodo(id){
   confirmAction('Smazat tento úkol?','Smazat',async function(){await mut('delete','todos',{id:id});});
@@ -1348,21 +1488,20 @@ async function todoDrop(ev,targetId){
   var changed=[];
   notDone.forEach(function(t,i){
     var newOrder=i*10;
-    if(Number(t.order)!==newOrder){t.order=newOrder;changed.push(t);}
+    if(Number(t.order)!==newOrder)changed.push({id:t.id,data:Object.assign({},t,{order:newOrder})});
   });
-  render();
-  for(var i=0;i<changed.length;i++){var t=changed[i];await mut('update','todos',{id:t.id,data:Object.assign({},t,{order:t.order})});}
+  if(changed.length)mutBatchFast('todos',changed); // jeden požadavek pro všechny přeřazené úkoly
 }
 async function setIS(id,status){
   var i=DB.invoices.find(function(x){return x.id===id;});if(!i)return;
   if(status==='paid'){
     openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">Datum zaplacení</div><div class="fr"><label class="lbl">Kdy byla faktura zaplacena?</label><input class="inp" type="date" id="fpaid" value="'+today()+'"></div><div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="confirmPay('+id+')">✓ Potvrdit platbu</button></div>');
-  }else{await mut('update','invoices',{id:id,data:Object.assign({},i,{status:status})});toast('Stav aktualizován','success');}
+  }else{mutFast('invoices',id,Object.assign({},i,{status:status}));}
 }
 async function confirmPay(id){
   var i=DB.invoices.find(function(x){return x.id===id;});if(!i)return;
   var paidDate=$('fpaid').value||today();
-  closeModal();await mut('update','invoices',{id:id,data:Object.assign({},i,{status:'paid',paidDate:paidDate})});toast('Faktura označena jako zaplacená','success');
+  closeModal();mutFast('invoices',id,Object.assign({},i,{status:'paid',paidDate:paidDate}));toast('Faktura označena jako zaplacená','success');
 }
 
 // ═══ MODALS ══════════════════════════════════════════════════
@@ -1422,7 +1561,7 @@ async function saveO(id){
 }
 function openCM(id){
   var c=id?gc(id):null;FC=c?c.color:autoAssignColor();
-  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(c?'Upravit klienta':'Nový klient')+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl" for="fn">Jméno *</label><input class="inp" id="fn" value="'+e((c&&c.name||''))+'"></div><div class="fr" style="margin:0"><label class="lbl" for="fco">Firma</label><input class="inp" id="fco" value="'+e((c&&c.company||''))+'"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl" for="fem">Email</label><input class="inp" type="email" id="fem" value="'+e((c&&c.email||''))+'"></div><div class="fr" style="margin:0"><label class="lbl" for="fph">Telefon</label><input class="inp" type="text" id="fph" value="'+e((c&&c.phone||''))+'"></div></div><div class="fr"><label class="lbl" for="fad">Adresa</label><input class="inp" id="fad" value="'+e((c&&c.address||''))+'"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl" for="fci">Město</label><input class="inp" id="fci" value="'+e((c&&c.city||''))+'"></div><div class="fr" style="margin:0"><label class="lbl" for="fzi">PSČ</label><input class="inp" id="fzi" value="'+e((c&&c.zip||''))+'"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl" for="fico">IČO</label><input class="inp" id="fico" value="'+e((c&&c.ico||''))+'"></div><div class="fr" style="margin:0"><label class="lbl" for="fdic">DIČ</label><input class="inp" id="fdic" value="'+e((c&&c.dic||''))+'"></div></div><div class="fr"><label class="lbl" for="fno">Poznámky</label><textarea class="inp" id="fno" rows="2" style="resize:vertical">\'+(c&&c.notes||\'\')+\'</textarea></div><div class="fr"><label class="lbl">Barva</label>'+cpick(FC,'FC')+'</div><div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="saveC('+((c&&c.id||0))+')">Uložit</button></div>');
+  openModal('<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(c?'Upravit klienta':'Nový klient')+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl" for="fn">Jméno *</label><input class="inp" id="fn" value="'+e((c&&c.name||''))+'"></div><div class="fr" style="margin:0"><label class="lbl" for="fco">Firma</label><input class="inp" id="fco" value="'+e((c&&c.company||''))+'"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl" for="fem">Email</label><input class="inp" type="email" id="fem" value="'+e((c&&c.email||''))+'"></div><div class="fr" style="margin:0"><label class="lbl" for="fph">Telefon</label><input class="inp" type="text" id="fph" value="'+e((c&&c.phone||''))+'"></div></div><div class="fr"><label class="lbl" for="fad">Adresa</label><input class="inp" id="fad" value="'+e((c&&c.address||''))+'"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl" for="fci">Město</label><input class="inp" id="fci" value="'+e((c&&c.city||''))+'"></div><div class="fr" style="margin:0"><label class="lbl" for="fzi">PSČ</label><input class="inp" id="fzi" value="'+e((c&&c.zip||''))+'"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px"><div class="fr" style="margin:0"><label class="lbl" for="fico">IČO</label><input class="inp" id="fico" value="'+e((c&&c.ico||''))+'"></div><div class="fr" style="margin:0"><label class="lbl" for="fdic">DIČ</label><input class="inp" id="fdic" value="'+e((c&&c.dic||''))+'"></div></div><div class="fr"><label class="lbl" for="fno">Poznámky</label><textarea class="inp" id="fno" rows="2" style="resize:vertical">'+e((c&&c.notes||''))+'</textarea></div><div class="fr"><label class="lbl">Barva</label>'+cpick(FC,'FC')+'</div><div class="mfooter"><button class="btn bg" onclick="closeModal()">Zrušit</button><button class="btn bp" onclick="saveC('+((c&&c.id||0))+')">Uložit</button></div>');
 }
 async function saveC(id){var name=$('fn').value.trim();if(!name)return toast('Zadej jméno','error');var data={name:name,company:$('fco').value,email:$('fem').value,phone:$('fph').value,address:$('fad').value,city:$('fci').value,zip:$('fzi').value,ico:$('fico').value,dic:$('fdic').value,notes:$('fno').value,color:FC};closeModal();if(id)await mut('update','clients',{id:id,data:Object.assign({},gc(id),data)});else await mut('create','clients',{data:data});toast(id?'Klient aktualizován':'Klient vytvořen','success');}
 
