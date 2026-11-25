@@ -1143,11 +1143,14 @@ function renderFinPanel(o){
       legend3=finLegend('var(--bd)','Práce od posl. faktury',fmtDur(f.secSinceInv));
     }else{
       var rp=f.price>0?Math.round(f.remaining/f.price*100):0;
-      head='<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:8px 0 12px"><span style="font-size:13px;color:var(--tx2)">Zbývá vyfakturovat</span><span class="mono" style="font-size:24px;font-weight:800;color:'+(f.remaining>0?'var(--ac)':'#059669')+'">'+fmtM(f.remaining)+'</span>'+(f.remaining>0?'<span style="font-size:12px;color:var(--tx3)">'+rp+' %</span>':'<span style="font-size:12px;color:#059669;font-weight:700">✓ vše vyfakturováno</span>')+'</div>'
+      head='<div style="display:flex;align-items:flex-end;gap:12px 36px;flex-wrap:wrap;margin:10px 0 14px">'
+        +'<div><div style="font-size:13px;color:var(--tx2);margin-bottom:2px">Cena</div><span class="mono" style="font-size:24px;font-weight:800;color:var(--tx)">'+fmtM(f.price)+'</span></div>'
+        +'<div><div style="font-size:13px;color:var(--tx2);margin-bottom:2px">Zbývá vyfakturovat</div><div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span class="mono" style="font-size:24px;font-weight:800;color:'+(f.remaining>0?'var(--ac)':'#059669')+'">'+fmtM(f.remaining)+'</span>'+(f.remaining>0?'<span style="font-size:12px;color:var(--tx3)">'+rp+' %</span>':'<span style="font-size:12px;color:#059669;font-weight:700">✓ vše vyfakturováno</span>')+'</div></div>'
+        +'</div>'
         +(f.invoiced>f.price&&f.price>0?'<div style="font-size:12px;color:#d97706;margin:-6px 0 10px">Vyfakturováno o '+fmtM(f.invoiced-f.price)+' víc než cena zakázky</div>':'');
       legend3=finLegend('var(--bd)','Nevyfakturováno',fmtM(f.remaining));
     }
-    bill='<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="'+lbl+'">Fakturace</span>'+(f.recurring?'<span style="font-size:12px;color:var(--tx3)">Průběžná zakázka</span>':'<span style="font-size:12px;color:var(--tx2)">Cena <span class="mono" style="color:var(--tx);font-weight:700">'+fmtM(f.price)+'</span></span>')+'</div>'
+    bill='<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="'+lbl+'">Fakturace</span>'+(f.recurring?'<span style="font-size:12px;color:var(--tx3)">Průběžná zakázka</span>':'')+'</div>'
       +head
       +'<div style="display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--bg-in);border:1px solid var(--bd)" title="Zaplaceno '+fmtM(f.paid)+' · Čeká na úhradu '+fmtM(f.unpaid)+'">'
       +'<div style="width:'+pc(f.paid)+'%;background:#10b981"></div><div style="width:'+pc(f.unpaid)+'%;background:#f59e0b"></div></div>'
